@@ -1,0 +1,5 @@
+x86-windows/
+x86-windows/share/
+x86-windows/share/pthread/
+x86-windows/share/pthread/vcpkg.spdx.json
+x86-windows/share/pthread/vcpkg_abi_info.txt
