@@ -101,11 +101,16 @@ private:
 
         int rows_per_thread = x.size() / num_threads;
 
-        for (int i = 0; i < num_threads; ++i) {
+        for (int i = 0; i < num_threads; i++) {
             int start = i * rows_per_thread;
             int end = start + rows_per_thread;
-            std::cout << "Thread" << i << ": " << start << " " << end << std::endl;
-            params.push_back({ &x, new std::pair<int, int>(start, end), &y });
+
+            //problem : access violated 
+            ThreadParams thread_params = { &x, new std::pair<int, int>(start, end), &y };
+            params.push_back(thread_params);
+
+            //ThreadParams* thread_params_copy = new ThreadParams(thread_params); // Make a copy
+
             pthread_t thread_id;
             pthread_create(&thread_id, nullptr, compute_distance, &params[i]);
             thread_ids.push_back(thread_id);
@@ -176,7 +181,7 @@ int main() {
 
     std::vector<double> target = { 0.0,1.0,0.0,1.0,26.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,1.0,0.0,3.0,5.0,30.0,0.0,1.0,4.0,6.0,8.0 };
 
-    int num_threads = 3; // Set the number of threads
+    int num_threads = 2; // Set the number of threads
     Knn knn(3, num_threads); // Use K=3
 
     int prediction = knn.predict_class(dataset, target);
