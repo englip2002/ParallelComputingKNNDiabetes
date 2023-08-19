@@ -15,13 +15,13 @@ struct ThreadParams {
     const std::vector<double>* y;
 };
 
-class Knn {
+class PthreadKnn {
 private:
     int neighbours_number;
     int num_threads;
 
 public:
-    Knn(int k, int threads) : neighbours_number(k), num_threads(threads) {}
+    PthreadKnn(int k, int threads) : neighbours_number(k), num_threads(threads) {}
 
     int predict_class(const std::vector<std::vector<double>>& dataset, const std::vector<double>& target) {
         std::vector<std::vector<double>> distances;
@@ -182,7 +182,7 @@ int main() {
     std::vector<double> target = { 0.0,1.0,0.0,1.0,26.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,1.0,0.0,3.0,5.0,30.0,0.0,1.0,4.0,6.0,8.0 };
 
     int num_threads = 2; // Set the number of threads
-    Knn knn(3, num_threads); // Use K=3
+    PthreadKnn knn(3, num_threads); // Use K=3
 
     int prediction = knn.predict_class(dataset, target);
     std::cout << "Prediction: " << prediction << std::endl;
