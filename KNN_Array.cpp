@@ -6,27 +6,15 @@
 #include <string>
 #include <chrono>
 #include <vector>
-#include <pthread.h>
 
-const int num_threads = 4;
+bool sort_by_dist(const double* v1, const double* v2);
 
-struct ThreadParams {
-    double** dataset;
-    const double* target;
-    double** distances;
-    int dataset_size;
-    int feature_size;
-    int start;
-    int end;
-    int thread_id;
-};
-
-class PthreadKnn {
+class Knn {
 private:
     int neighbours_number;
 
 public:
-    PthreadKnn(int k) : neighbours_number(k) {}
+    Knn(int k) : neighbours_number(k) {}
 
     int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
         double* distances[3];
@@ -34,11 +22,8 @@ public:
         int ones_count = 0;
         int prediction = -1;
 
-        //distance
         distances[0] = new double[dataset_size];
-        //outcome label (0/1)
         distances[1] = new double[dataset_size];
-        //index
         distances[2] = new double[dataset_size];
 
         get_knn(dataset, target, distances, dataset_size, feature_size);
@@ -67,7 +52,7 @@ public:
     }
 
 private:
-    static double euclidean_distance(const double* x, const double* y, int feature_size) {
+    double euclidean_distance(const double* x, const double* y, int feature_size) {
         double l2 = 0.0;
         for (int i = 1; i < feature_size; i++) {
             l2 += std::pow((x[i] - y[i]), 2);
@@ -75,41 +60,19 @@ private:
         return std::sqrt(l2);
     }
 
-    static void* compute_distances(void* arg) {
-        ThreadParams* params = static_cast<ThreadParams*>(arg);
+    void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
         int count = 0;
-
-        for (int i = params->start; i < params->end; i++) {
-            if (params->dataset[i] == params->target) continue; // do not use the same point
-            params->distances[0][i] = euclidean_distance(params->target, params->dataset[i], params->feature_size);
-            params->distances[1][i] = params->dataset[i][0]; // Store outcome label
-            params->distances[2][i] = i; // Store index
+        for (int i = 0; i < dataset_size; i++) {
+            if (x[i] == y) continue; // do not use the same point
+            distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
+            distances[1][count] = x[i][0]; // Store outcome label
+            distances[2][count] = i; // Store index
             count++;
         }
-        std::cout << "Thread " << params->thread_id << " - Number of euclidean run: " << count << std::endl;
-
-        return nullptr;
-    }
-    
-    void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
-        ThreadParams params[num_threads];
-        pthread_t thread_ids[num_threads];
-
-        int rows_per_thread = dataset_size / num_threads;
-
-        for (int i = 0; i < num_threads; i++) {
-            //assign start and end point for each thread
-            int start = i * rows_per_thread;
-            int end = (i == num_threads - 1) ? dataset_size : (i + 1) * rows_per_thread;
-
-            //store parameter
-            params[i] = { x, y, distances, dataset_size, feature_size, start, end ,i};
-            pthread_create(&thread_ids[i], nullptr, compute_distances, &params[i]);
-        }
-
-        for (int i = 0; i < num_threads; i++) {
-            pthread_join(thread_ids[i], nullptr);
-        }
+        std::cout << "Number of euclidean run:" << count << std::endl;
+        std::sort(distances[2], distances[2] + count, [distances](int i, int j) {
+            return distances[0][i] < distances[0][j];
+            });
     }
 };
 
@@ -142,8 +105,8 @@ int main() {
     const int feature_size = 22;
 
     double* dataset[dataset_size];
-    double target[feature_size] = { 0.0,0.0,0.0,1.0,24.0,1.0,0.0,0.0,1.0,1.0,1.0,0.0,1.0,0.0,1.0,3.0,0.0,0.0,0.0,2.0,5.0,3.0 };
-
+    double target[feature_size] = {0.0,0.0,0.0,1.0,24.0,1.0,0.0,0.0,1.0,1.0,1.0,0.0,1.0,0.0,1.0,3.0,0.0,0.0,0.0,2.0,5.0,3.0};
+    
     // Allocate memory for dataset and target
     for (int i = 0; i < dataset_size; i++) {
         dataset[i] = new double[feature_size];
@@ -168,13 +131,14 @@ int main() {
         }
         index++;
     }
+    
 
     std::cout << "Number of records: " << dataset_size << std::endl;
 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    PthreadKnn knn(3); // Use K=3
+    Knn knn(3); // Use K=3
 
-    int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
+    int prediction = knn.predict_class(dataset, target, dataset_size,feature_size);
     std::cout << "Prediction: " << prediction << std::endl;
 
     if (prediction == 0) {

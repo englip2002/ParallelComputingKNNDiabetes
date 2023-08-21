@@ -15,13 +15,13 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="KNN.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Pthreads.cpp">
+    <ClCompile Include="KNN_Array.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="TaskFlow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Pthreads.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
