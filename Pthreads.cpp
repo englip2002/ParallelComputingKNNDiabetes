@@ -10,6 +10,73 @@
 
 const int num_threads = 4;
 
+class Knn {
+private:
+    int neighbours_number;
+
+public:
+    Knn(int k) : neighbours_number(k) {}
+
+    int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
+        double* distances[3];
+        int zeros_count = 0;
+        int ones_count = 0;
+        int prediction = -1;
+
+        distances[0] = new double[dataset_size];
+        distances[1] = new double[dataset_size];
+        distances[2] = new double[dataset_size];
+
+        get_knn(dataset, target, distances, dataset_size, feature_size);
+
+        for (int i = 0; i < dataset_size; i++) {
+            if (distances[1][i] == 0) {
+                zeros_count += 1;
+            }
+            if (distances[1][i] == 1) {
+                ones_count += 1;
+            }
+        }
+
+        if (zeros_count > ones_count) {
+            prediction = 0;
+        }
+        else {
+            prediction = 1;
+        }
+
+        delete[] distances[0];
+        delete[] distances[1];
+        delete[] distances[2];
+
+        return prediction;
+    }
+
+private:
+    double euclidean_distance(const double* x, const double* y, int feature_size) {
+        double l2 = 0.0;
+        for (int i = 1; i < feature_size; i++) {
+            l2 += std::pow((x[i] - y[i]), 2);
+        }
+        return std::sqrt(l2);
+    }
+
+    void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
+        int count = 0;
+        for (int i = 0; i < dataset_size; i++) {
+            if (x[i] == y) continue; // do not use the same point
+            distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
+            distances[1][count] = x[i][0]; // Store outcome label
+            distances[2][count] = i; // Store index
+            count++;
+        }
+        std::cout << "Number of euclidean run:" << count << std::endl;
+        std::sort(distances[2], distances[2] + count, [distances](int i, int j) {
+            return distances[0][i] < distances[0][j];
+            });
+    }
+};
+
 struct ThreadParams {
     double** dataset;
     const double* target;
@@ -171,8 +238,34 @@ int main() {
 
     std::cout << "Number of records: " << dataset_size << std::endl;
 
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    PthreadKnn knn(3); // Use K=3
+    //Pthread Knn
+#pragma region PthreadKnn
+    std::cout << "\n\nPthread KNN: " << std::endl;
+    std::chrono::steady_clock::time_point pthreadBegin = std::chrono::steady_clock::now();
+
+    PthreadKnn pthreadknn(3); // Use K=3
+    int pthreadPrediction = pthreadknn.predict_class(dataset, target, dataset_size, feature_size);
+    std::cout << "Pthread Prediction: " << pthreadPrediction << std::endl;
+
+    if (pthreadPrediction == 0) {
+        std::cout << "Predicted class: Negative" << std::endl;
+    }
+    else if (pthreadPrediction == 1) {
+        std::cout << "Predicted class: Prediabetes or Diabetes" << std::endl;
+    }
+    else {
+        std::cout << "Prediction could not be made." << std::endl;
+    }
+
+    std::chrono::steady_clock::time_point pthreadEnd = std::chrono::steady_clock::now();
+    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[µs]" << std::endl;
+#pragma endregion
+
+    //Knn
+#pragma region Knn
+    std::cout << "\n\nKNN: " << std::endl;
+    std::chrono::steady_clock::time_point knnBegin = std::chrono::steady_clock::now();
+    Knn knn(3); // Use K=3
 
     int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
     std::cout << "Prediction: " << prediction << std::endl;
@@ -187,8 +280,10 @@ int main() {
         std::cout << "Prediction could not be made." << std::endl;
     }
 
-    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+    std::chrono::steady_clock::time_point knnEnd = std::chrono::steady_clock::now();
+    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(knnEnd - knnBegin).count() << "[µs]" << std::endl;
+#pragma endregion
+
 
     // Deallocate memory for dataset
     for (int i = 0; i < dataset_size; i++) {
