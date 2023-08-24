@@ -18,8 +18,7 @@ private:
 public:
     Knn(int k) : neighbours_number(k) {}
 
-    int predict_class(int* dataset[], const int
-* target, int dataset_size, int feature_size) {
+    int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
         double* distances[3];
         int zeros_count = 0;
         int ones_count = 0;
@@ -55,7 +54,7 @@ public:
     }
 
 private:
-    double euclidean_distance(const int* x, const int* y, int feature_size) {
+    double euclidean_distance(const double* x, const double* y, int feature_size) {
         double l2 = 0.0;
         for (int i = 1; i < feature_size; i++) {
             l2 += std::pow((x[i] - y[i]), 2);
@@ -63,7 +62,7 @@ private:
         return std::sqrt(l2);
     }
 
-    void get_knn(int* x[], const int* y, double* distances[3], int dataset_size, int feature_size) {
+    void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
         int count = 0;
         for (int i = 0; i < dataset_size; i++) {
             if (x[i] == y) continue; // do not use the same point
@@ -80,8 +79,8 @@ private:
 };
 
 struct ThreadParams {
-    int** dataset;
-    const int* target;
+    double** dataset;
+    const double* target;
     double** distances;
     int dataset_size;
     int feature_size;
@@ -97,7 +96,7 @@ private:
 public:
     PthreadKnn(int k) : neighbours_number(k) {}
 
-    int predict_class(int* dataset[], const int* target, int dataset_size, int feature_size) {
+    int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
         double* distances[3];
         int zeros_count = 0;
         int ones_count = 0;
@@ -136,7 +135,7 @@ public:
     }
 
 private:
-    static double euclidean_distance(const int* x, const int* y, int feature_size) {
+    static double euclidean_distance(const double* x, const double* y, int feature_size) {
         double l2 = 0.0;
         for (int i = 1; i < feature_size; i++) {
             l2 += std::pow((x[i] - y[i]), 2);
@@ -160,7 +159,7 @@ private:
         return nullptr;
     }
     
-    void get_knn(int* x[], const int* y, double* distances[3], int dataset_size, int feature_size) {
+    void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
         ThreadParams params[num_threads];
         pthread_t thread_ids[num_threads];
 
@@ -210,12 +209,12 @@ int main() {
     const int dataset_size = 253681;
     const int feature_size = 22;
 
-    int* dataset[dataset_size];
-    int target[feature_size] = { 0.0,0.0,0.0,1.0,24.0,1.0,0.0,0.0,1.0,1.0,1.0,0.0,1.0,0.0,1.0,3.0,0.0,0.0,0.0,2.0,5.0,3.0 };
+    double* dataset[dataset_size];
+    double target[feature_size] = { 0.0,0.0,0.0,1.0,24.0,1.0,0.0,0.0,1.0,1.0,1.0,0.0,1.0,0.0,1.0,3.0,0.0,0.0,0.0,2.0,5.0,3.0 };
 
     // Allocate memory for dataset and target
     for (int i = 0; i < dataset_size; i++) {
-        dataset[i] = new int[feature_size];
+        dataset[i] = new double[feature_size];
     }
 
     // Read data from CSV and populate dataset and target
