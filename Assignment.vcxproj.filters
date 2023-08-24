@@ -40,5 +40,17 @@
     <ClInclude Include="taskflow\taskflow\taskflow.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vcpkg_installed\x86-windows\include\_ptw32.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vcpkg_installed\x86-windows\include\pthread.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vcpkg_installed\x86-windows\include\sched.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vcpkg_installed\x86-windows\include\semaphore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -212,24 +212,24 @@ int main() {
 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    Knn knn(3); // Use K=3
-    int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
+    //Knn knn(3); // Use K=3
+    //int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
 
     ParallelKnn parallelKnn(3); // Use K=3
     int parallel_prediction = parallelKnn.parallel_predict_class(dataset, target, dataset_size, feature_size);
 
-    std::cout << "Serial Prediction: " << prediction << std::endl;
+    //std::cout << "Serial Prediction: " << prediction << std::endl;
     std::cout << "Parallel Prediction: " << parallel_prediction << std::endl;
 
-    if (prediction == 0) {
-        std::cout << "Serial Predicted class: Negative" << std::endl;
-    }
-    else if (prediction == 1) {
-        std::cout << "Serial Predicted class: Prediabetes or Diabetes" << std::endl;
-    }
-    else {
-        std::cout << "Serial Prediction could not be made." << std::endl;
-    }
+    //if (prediction == 0) {
+    //    std::cout << "Serial Predicted class: Negative" << std::endl;
+    //}
+    //else if (prediction == 1) {
+    //    std::cout << "Serial Predicted class: Prediabetes or Diabetes" << std::endl;
+    //}
+    //else {
+    //    std::cout << "Serial Prediction could not be made." << std::endl;
+    //}
 
     if (parallel_prediction == 0) {
         std::cout << "Parallel Predicted class: Negative" << std::endl;
