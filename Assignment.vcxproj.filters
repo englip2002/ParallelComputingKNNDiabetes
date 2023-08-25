@@ -37,10 +37,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="taskflow\taskflow\taskflow.hpp">
+    <ClInclude Include="external\include\pthread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="external\include\pthread.h">
+    <ClInclude Include="taskflow\taskflow\taskflow.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
