@@ -206,11 +206,12 @@ std::vector<double> parseLine(const std::string& line) {
 int main() {
     std::string filename = "diabetes_binary.csv";
 
-    const int dataset_size = 253681;
+    //const int dataset_size = 253681; 
+    const int dataset_size = 53681;
     const int feature_size = 22;
 
-    double* dataset[dataset_size];
-    double target[feature_size] = { 0.0,0.0,0.0,1.0,24.0,1.0,0.0,0.0,1.0,1.0,1.0,0.0,1.0,0.0,1.0,3.0,0.0,0.0,0.0,2.0,5.0,3.0 };
+    double** dataset = new double* [dataset_size];
+    double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
 
     // Allocate memory for dataset and target
     for (int i = 0; i < dataset_size; i++) {
@@ -229,7 +230,7 @@ int main() {
 
     std::string line;
     int index = 0;
-    while (std::getline(file, line)) {
+    while (std::getline(file, line) && index < dataset_size) {
         std::vector<double> row = parseLine(line);
         for (int j = 0; j < feature_size; j++) {
             dataset[index][j] = row[j];
@@ -237,7 +238,7 @@ int main() {
         index++;
     }
 
-    std::cout << "Number of records: " << dataset_size << std::endl;
+    std::cout << "Number of records: " << index << std::endl;
 
     //Pthread Knn
 #pragma region PthreadKnn
