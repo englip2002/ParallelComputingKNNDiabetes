@@ -175,7 +175,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="external\include\pthread.h" />
-    <ClInclude Include="taskflow\taskflow\taskflow.hpp" />
+    <ClInclude Include="external\include\taskflow\taskflow.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
