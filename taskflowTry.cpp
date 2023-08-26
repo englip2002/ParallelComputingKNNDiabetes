@@ -6,6 +6,8 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#include <thread>
+#include <mutex>
 #include "taskflow/taskflow/taskflow.hpp"
 
 bool sort_by_dist(const double* v1, const double* v2);
@@ -46,7 +48,7 @@ public:
             int start_idx = t * chunk_size;
             int end_idx = (t == num_threads - 1) ? dataset_size : (start_idx + chunk_size);
 
-            taskflow.emplace([&, start_idx, end_idx] {
+            taskflow.emplace([&, start_idx, end_idx, t] {
                 ThreadParams params = { dataset, target, distances, dataset_size, feature_size, start_idx, end_idx, t };
                 compute_distances(&params);
                 });
@@ -95,6 +97,8 @@ private:
         return std::sqrt(l2);
     }
 
+    static std::mutex outputMutex;
+
     static void compute_distances(ThreadParams* params) {
         int count = 0;
 
@@ -105,9 +109,14 @@ private:
             params->distances[2][i] = i; // Store index
             count++;
         }
+
+        // Lock the mutex before printing
+        std::lock_guard<std::mutex> lock(outputMutex);
         std::cout << "Thread " << params->thread_id << " - Number of euclidean run: " << count << std::endl;
     }
 };
+
+std::mutex TaskflowKnn::outputMutex; // Definition of static mutex
 
 bool sort_by_dist(const double* v1, const double* v2) {
     return v1[0] < v2[0];
@@ -137,6 +146,8 @@ int main() {
     const int dataset_size = 53681;
     const int feature_size = 22;
     const int num_threads = 4;
+    // Get the number of available CPU cores
+    //const int num_threads = std::thread::hardware_concurrency();
 
     double** dataset = new double* [dataset_size];
     double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
@@ -171,15 +182,15 @@ int main() {
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     TaskflowKnn tfknn(3, num_threads); // Use K=3, with 4 threads
-    int prediction = tfknn.predict_class(dataset, target, dataset_size, feature_size);
+    int taskFlowPrediction = tfknn.predict_class(dataset, target, dataset_size, feature_size);
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    std::cout << "Prediction: " << prediction << std::endl;
+    std::cout << "Prediction: " << taskFlowPrediction << std::endl;
 
-    if (prediction == 0) {
+    if (taskFlowPrediction == 0) {
         std::cout << "Predicted class: Negative" << std::endl;
     }
-    else if (prediction == 1) {
+    else if (taskFlowPrediction == 1) {
         std::cout << "Predicted class: Prediabetes or Diabetes" << std::endl;
     }
     else {
