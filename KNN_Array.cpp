@@ -7,8 +7,6 @@
 #include <chrono>
 #include <vector>
 
-bool sort_by_dist(const double* v1, const double* v2);
-
 class Knn {
 private:
     int neighbours_number;
@@ -20,33 +18,42 @@ public:
         double* distances[3];
         int zeros_count = 0;
         int ones_count = 0;
-        int prediction = -1;
 
+        // Allocate memory for distances and index order
         distances[0] = new double[dataset_size];
         distances[1] = new double[dataset_size];
         distances[2] = new double[dataset_size];
 
         get_knn(dataset, target, distances, dataset_size, feature_size);
 
-        for (int i = 0; i < dataset_size; i++) {
-            if (distances[1][i] == 0) {
+        int* index_order = new int[dataset_size];
+        for (int i = 0; i < dataset_size; ++i) {
+            index_order[i] = i;
+        }
+
+        // Partial sort using nth_element instead of full sort
+        std::nth_element(index_order, index_order + neighbours_number, index_order + dataset_size,
+            [&](int i, int j) {
+                return distances[0][i] < distances[0][j];
+            });
+
+        // Count label occurrences in the K nearest neighbors
+        for (int i = 0; i < neighbours_number; i++) {
+            if (distances[1][index_order[i]] == 0) {
                 zeros_count += 1;
             }
-            if (distances[1][i] == 1) {
+            else if (distances[1][index_order[i]] == 1) {
                 ones_count += 1;
             }
         }
 
-        if (zeros_count > ones_count) {
-            prediction = 0;
-        }
-        else {
-            prediction = 1;
-        }
+        int prediction = (zeros_count > ones_count) ? 0 : 1;
 
+        // Clean up memory
         delete[] distances[0];
         delete[] distances[1];
         delete[] distances[2];
+        delete[] index_order;
 
         return prediction;
     }
@@ -75,10 +82,6 @@ private:
             });
     }
 };
-
-bool sort_by_dist(const double* v1, const double* v2) {
-    return v1[0] < v2[0];
-}
 
 std::vector<double> parseLine(const std::string& line) {
     std::vector<double> row;
