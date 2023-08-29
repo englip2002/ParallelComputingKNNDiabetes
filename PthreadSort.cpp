@@ -11,84 +11,6 @@
 
 const int num_threads = 4;
 
-class Knn {
-private:
-	int neighbours_number;
-
-public:
-	Knn(int k) : neighbours_number(k) {}
-
-	int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
-		double* distances[3];
-
-		// Allocate memory for distances and index order
-		distances[0] = new double[dataset_size];
-		distances[1] = new double[dataset_size];
-		distances[2] = new double[dataset_size];
-
-		get_knn(dataset, target, distances, dataset_size, feature_size);
-
-		int* index_order = new int[dataset_size];
-		for (int i = 0; i < dataset_size; ++i) {
-			index_order[i] = i;
-		}
-
-		std::nth_element(index_order, index_order + neighbours_number, index_order + dataset_size,
-			[&](int i, int j) {
-				return distances[0][i] < distances[0][j];
-			});
-
-		int zeros_count = 0;
-		int ones_count = 0;
-
-		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][index_order[i]] == 0) {
-				zeros_count += 1;
-				//std::cout << "0: " << distances[0][index_order[i]] << std::endl;
-			}
-			else if (distances[1][index_order[i]] == 1) {
-				ones_count += 1;
-				//std::cout << "1: " << distances[0][index_order[i]] << std::endl;
-			}
-		}
-
-		int prediction = (zeros_count > ones_count) ? 0 : 1;
-
-		// Clean up memory
-		delete[] distances[0];
-		delete[] distances[1];
-		delete[] distances[2];
-		delete[] index_order;
-
-		return prediction;
-	}
-
-private:
-	double euclidean_distance(const double* x, const double* y, int feature_size) {
-		double l2 = 0.0;
-		for (int i = 1; i < feature_size; i++) {
-			l2 += std::pow((x[i] - y[i]), 2);
-		}
-		return std::sqrt(l2);
-	}
-
-	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
-		int count = 0;
-		for (int i = 0; i < dataset_size; i++) {
-			if (x[i] == y) continue; // do not use the same point
-			distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
-			distances[1][count] = x[i][0]; // Store outcome label
-			distances[2][count] = i; // Store index
-			count++;
-		}
-		std::cout << "Number of euclidean run:" << count << std::endl;
-		std::sort(distances[2], distances[2] + count, [distances](int i, int j) {
-			return distances[0][i] < distances[0][j];
-			});
-	}
-};
-
 struct ThreadParams {
 	double** dataset;
 	const double* target;
@@ -98,6 +20,14 @@ struct ThreadParams {
 	int start;
 	int end;
 	int thread_id;
+};
+
+
+struct SortParams {
+	double* distances;
+	int* index_order;
+	int start;
+	int end;
 };
 
 class PthreadKnn {
@@ -113,21 +43,30 @@ public:
 		// Allocate memory for distances and index order
 		distances[0] = new double[dataset_size];
 		distances[1] = new double[dataset_size];
-		distances[2] = new double[dataset_size];
 
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
+		//assign index to rearrange while sorting and use it to count label occurance
 		int* index_order = new int[dataset_size];
 		for (int i = 0; i < dataset_size; ++i) {
 			index_order[i] = i;
 		}
 
-		// Partial sort using nth_element instead of full sort
-		std::nth_element(index_order, index_order + neighbours_number, index_order + dataset_size,
-			[&](int i, int j) {
-				return distances[0][i] < distances[0][j];
-			});
+		// Parallelize the sorting process using pthreads
+		pthread_t sort_thread_ids[num_threads];
+		SortParams sort_params[num_threads];
+		int rows_per_thread = dataset_size / num_threads;
 
+		for (int i = 0; i < num_threads; i++) {
+			int start = i * rows_per_thread;
+			int end = (i == num_threads - 1) ? dataset_size : (i + 1) * rows_per_thread;
+			sort_params[i] = { distances[0], index_order, start, end };
+			pthread_create(&sort_thread_ids[i], nullptr, sort_distances, &sort_params[i]);
+		}
+
+		for (int i = 0; i < num_threads; i++) {
+			pthread_join(sort_thread_ids[i], nullptr);
+		}
 		int zeros_count = 0;
 		int ones_count = 0;
 
@@ -135,9 +74,11 @@ public:
 		for (int i = 0; i < neighbours_number; i++) {
 			if (distances[1][index_order[i]] == 0) {
 				zeros_count += 1;
+				std::cout << "0: " << index_order[i] << "," << distances[0][index_order[i]] << std::endl;
 			}
 			else if (distances[1][index_order[i]] == 1) {
 				ones_count += 1;
+				std::cout << "1: " << index_order[i] << "," << distances[0][index_order[i]] << std::endl;
 			}
 		}
 
@@ -146,7 +87,6 @@ public:
 		// Clean up memory
 		delete[] distances[0];
 		delete[] distances[1];
-		delete[] distances[2];
 		delete[] index_order;
 
 		return prediction;
@@ -154,6 +94,22 @@ public:
 
 
 private:
+	static void* sort_distances(void* arg) {
+		SortParams* params = static_cast<SortParams*>(arg);
+
+		for (int i = params->start; i < params->end - 1; ++i) {
+			for (int j = i + 1; j < params->end; ++j) {
+				if (params->distances[i] > params->distances[j]) {
+					std::swap(params->distances[i], params->distances[j]);
+					std::swap(params->index_order[i], params->index_order[j]);
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
+
 	static double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
 		for (int i = 1; i < feature_size; i++) {
@@ -171,7 +127,6 @@ private:
 			if (params->dataset[i] == params->target) continue; // do not use the same point
 			params->distances[0][i] = euclidean_distance(params->target, params->dataset[i], params->feature_size);
 			params->distances[1][i] = params->dataset[i][0]; // Store outcome label
-			params->distances[2][i] = i; // Store index
 			count++;
 		}
 		std::cout << "Thread " << params->thread_id << " - Number of euclidean run: " << count << std::endl;
@@ -278,29 +233,6 @@ int main() {
 
 	std::chrono::steady_clock::time_point pthreadEnd = std::chrono::steady_clock::now();
 	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[µs]" << std::endl;
-#pragma endregion
-
-	//Knn
-#pragma region Knn
-	std::cout << "\n\nKNN: " << std::endl;
-	std::chrono::steady_clock::time_point knnBegin = std::chrono::steady_clock::now();
-	Knn knn(3); // Use K=3
-
-	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
-	std::cout << "Prediction: " << prediction << std::endl;
-
-	if (prediction == 0) {
-		std::cout << "Predicted class: Negative" << std::endl;
-	}
-	else if (prediction == 1) {
-		std::cout << "Predicted class: Prediabetes or Diabetes" << std::endl;
-	}
-	else {
-		std::cout << "Prediction could not be made." << std::endl;
-	}
-
-	std::chrono::steady_clock::time_point knnEnd = std::chrono::steady_clock::now();
-	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(knnEnd - knnBegin).count() << "[µs]" << std::endl;
 #pragma endregion
 
 
