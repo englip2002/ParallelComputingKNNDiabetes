@@ -27,6 +27,9 @@
     <ClCompile Include="taskflowTry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PthreadSort.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="diabetes_012.csv">

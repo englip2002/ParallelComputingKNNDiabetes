@@ -32,10 +32,21 @@ public:
         }
 
         // Partial sort using nth_element instead of full sort
-        std::nth_element(index_order, index_order + neighbours_number, index_order + dataset_size,
-            [&](int i, int j) {
-                return distances[0][i] < distances[0][j];
-            });
+        //std::nth_element(index_order, index_order + neighbours_number, index_order + dataset_size,
+        //    [&](int i, int j) {
+        //        return distances[0][i] < distances[0][j];
+        //    });
+
+        //purposely use not use function to show the effect of threading
+        for (int i = 0; i < dataset_size - 1; ++i) {
+            for (int j = i + 1; j < dataset_size; ++j) {
+                if (distances[0][i] > distances[0][j]) {
+                    std::swap(distances[0][i], distances[0][j]);
+                    std::swap(distances[1][i], distances[1][j]);
+                    std::swap(distances[2][i], distances[2][j]);
+                }
+            }
+        }
 
         // Count label occurrences in the K nearest neighbors
         for (int i = 0; i < neighbours_number; i++) {
