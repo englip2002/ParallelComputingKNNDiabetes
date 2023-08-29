@@ -11,6 +11,7 @@
 #include "taskflow/taskflow/taskflow.hpp"
 
 bool sort_by_dist(const double* v1, const double* v2);
+std::mutex outputMutex;
 
 class Knn {
 private:
@@ -173,7 +174,6 @@ private:
         return std::sqrt(l2);
     }
 
-    static std::mutex outputMutex;
 
     static void compute_distances(ThreadParams* params) {
         int count = 0;
@@ -186,13 +186,13 @@ private:
             count++;
         }
 
+
         // Lock the mutex before printing
         std::lock_guard<std::mutex> lock(outputMutex);
         std::cout << "Thread " << params->thread_id << " - Number of euclidean run: " << count << std::endl;
     }
 };
 
-std::mutex TaskflowKnn::outputMutex; // Definition of static mutex
 
 bool sort_by_dist(const double* v1, const double* v2) {
     return v1[0] < v2[0];
@@ -214,6 +214,18 @@ std::vector<double> parseLine(const std::string& line) {
     }
 
     return row;
+}
+
+// Function to read a chunk of lines from the CSV file
+void readCsvChunk(std::ifstream& file, int startLine, int endLine, std::vector<std::vector<double>>& dataset) {
+    std::string line;
+    for (int i = startLine; i < endLine; ++i) {
+        if (std::getline(file, line)) {
+            dataset[i] = parseLine(line);
+        } else {
+            break; // Break if end of file reached
+        }
+    }
 }
 
 int main() {
@@ -244,6 +256,30 @@ int main() {
 
     std::string header;
     std::getline(file, header);
+
+    //// Divide the dataset into chunks for threads to read
+    //int chunkSize = dataset_size / num_threads;
+    //std::vector<std::vector<double>> threadDatasets(num_threads, std::vector<double>(feature_size));
+
+    //std::vector<std::thread> readThreads;
+    //for (int t = 0; t < num_threads; ++t) {
+    //    int startLine = t * chunkSize;
+    //    int endLine = (t == num_threads - 1) ? dataset_size : (startLine + chunkSize);
+    //    readThreads.emplace_back(readCsvChunk, std::ref(file), startLine, endLine, std::ref(threadDatasets[t]));
+    //}
+
+    //for (auto& thread : readThreads) {
+    //    thread.join();
+    //}
+
+    //// Close the file after reading
+    //file.close();
+
+    // Convert the threadDatasets vector to an array of pointers to double
+    /*std::vector<double*> threadDatasetPointers(num_threads);
+    for (int t = 0; t < num_threads; ++t) {
+        threadDatasetPointers[t] = threadDatasets[t].data();
+    }*/
 
     std::string line;
     int index = 0;
