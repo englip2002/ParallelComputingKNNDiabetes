@@ -14,7 +14,7 @@ int part = 0;
 const int record_each_thread = 5;
 const int num_record_to_sort = 20;
 
-struct KNNParams {
+struct PthreadParams {
 	double** dataset;
 	const double* target;
 	double** distances;
@@ -25,7 +25,7 @@ struct KNNParams {
 	int thread_id;
 };
 
-struct sortParams {
+struct quickSortParams {
 	double** distances;
 	int datasetSize;
 	int low;
@@ -52,7 +52,7 @@ public:
 #pragma region quickSorting
 		// creating 4 threads
 		pthread_t sortThreads[num_threads];
-		sortParams sortParams[num_threads];
+		quickSortParams sortParams[num_threads];
 
 		for (int i = 0; i < num_threads; i++) {
 			sortParams[i] = { distances, dataset_size, 0, dataset_size };
@@ -122,7 +122,7 @@ public:
 
 private:
 	static void* quick_sort_parallel(void* arg) {
-		sortParams* params = static_cast<sortParams*>(arg);
+		quickSortParams* params = static_cast<quickSortParams*>(arg);
 		// which part out of 4 parts
 		int thread_part = part++;
 
@@ -172,7 +172,7 @@ private:
 	}
 
 	static void* compute_distances(void* arg) {
-		KNNParams* params = static_cast<KNNParams*>(arg);
+		PthreadParams* params = static_cast<PthreadParams*>(arg);
 		int count = 0;
 
 		//different thread is accessing different index range
@@ -189,7 +189,7 @@ private:
 	}
 
 	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
-		KNNParams params[num_threads];
+		PthreadParams params[num_threads];
 		pthread_t thread_ids[num_threads];
 
 		int rows_per_thread = dataset_size / num_threads;
@@ -229,10 +229,14 @@ public:
 
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
-		quick_sort(distances, 0, dataset_size);
+		quick_sort(distances, 0, dataset_size - 1);
+
+		for (int i = 0; i < num_record_to_sort; i++) {
+			std::cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+		}
 
 		// Count label occurrences in the K nearest neighbors
-		for (int i = 1; i <= neighbours_number; i++) {
+		for (int i = 0; i < neighbours_number; i++) {
 			if (distances[1][i] == 0) {
 				zeros_count += 1;
 				std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;
