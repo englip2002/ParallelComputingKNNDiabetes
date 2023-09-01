@@ -6,11 +6,13 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#include <mutex>
 #include "../include/taskflow/taskflow.hpp"
 #include "../include/taskflow/algorithm/for_each.hpp"
 #include "../include/taskflow/algorithm/sort.hpp"
 #include "../include/taskflow/algorithm/reduce.hpp"
 #include "../include/taskflow/core/task.hpp"
+#pragma warning(disable:4146)
 
 bool sort_by_dist(const double* v1, const double* v2);
 
@@ -33,23 +35,31 @@ public:
 
         get_knn(dataset, target, distances, dataset_size, feature_size);
 
+        std::mutex index_order_mutex;
+
         int* index_order = new int[dataset_size];
         for (int i = 0; i < dataset_size; ++i) {
             index_order[i] = i;
         }
 
+        // Create a custom comparison function for sorting
+        auto compare_function = [&](int i, int j) {
+            std::lock_guard<std::mutex> lock(index_order_mutex);
+            double diff = distances[0][i] - distances[0][j];
+            return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
+        };
+
         // Parallelized sorting using Taskflow
         tf::Executor executor;
         tf::Taskflow taskflow;
-        taskflow.emplace([&]() {
-            std::sort(index_order, index_order + dataset_size, [distances](int i, int j) {
-                return distances[0][i] < distances[0][j];
-                });
+
+        taskflow.emplace([&, index_order]() {
+            taskflow.sort(index_order, index_order + static_cast<int>(neighbours_number), compare_function);
             });
         executor.run(taskflow).wait();
 
-       /* taskflow.emplace([&]() {
-            taskflow.sort(index_order, index_order + dataset_size, [distances](int i, int j) {
+        /*taskflow.emplace([&]() {
+            taskflow.sort(index_order, index_order + static_cast<int>(neighbours_number), [&](int i, int j) {
                 return static_cast<int>(distances[0][i] - distances[0][j]);
                 });
             });
@@ -132,8 +142,8 @@ int main() {
     const int feature_size = 22;
 
     double** dataset = new double* [dataset_size];
-    double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
-    //double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+    //double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
+    double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
 
     for (int i = 0; i < dataset_size; i++) {
         dataset[i] = new double[feature_size];
