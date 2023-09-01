@@ -35,13 +35,12 @@ public:
 
 		quick_sort(distances, 0, dataset_size - 1);
 
-		//display first 10 sorted record to check
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < 20; i++) {
 			std::cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
 		}
 
 		// Count label occurrences in the K nearest neighbors
-		for (int i = 1; i <= neighbours_number; i++) {
+		for (int i = 0; i < neighbours_number; i++) {
 			if (distances[1][i] == 0) {
 				zeros_count += 1;
 				std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;

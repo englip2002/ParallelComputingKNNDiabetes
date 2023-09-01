@@ -46,7 +46,7 @@ public:
         }
 
         // Count label occurrences in the K nearest neighbors
-        for (int i = 1; i <= neighbours_number; i++) {
+        for (int i = 0; i < neighbours_number; i++) {
             if (distances[1][i] == 0) {
                 zeros_count += 1;
                 std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;
