@@ -144,6 +144,7 @@ public:
         // Parallelized sorting using Taskflow
         tf::Executor executor;
         tf::Taskflow taskflow;
+
         taskflow.emplace([&]() {
             std::sort(index_order, index_order + dataset_size, [distances](int i, int j) {
                 return distances[0][i] < distances[0][j];
@@ -163,9 +164,11 @@ public:
         for (int i = 0; i < neighbours_number; i++) {
             if (distances[1][index_order[i]] == 0) {
                 zeros_count += 1;
+                std::cout << "0: " << distances[0][index_order[i]] << "," << distances[2][index_order[i]] << std::endl;
             }
             else if (distances[1][index_order[i]] == 1) {
                 ones_count += 1;
+                std::cout << "1: " << distances[0][index_order[i]] << "," << distances[2][index_order[i]] << std::endl;
             }
         }
 
