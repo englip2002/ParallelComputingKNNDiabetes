@@ -52,5 +52,11 @@
     <ClInclude Include="external\include\taskflow\taskflow.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="external\include\taskflow\algorithm\for_each.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="external\include\taskflow\algorithm\sort.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

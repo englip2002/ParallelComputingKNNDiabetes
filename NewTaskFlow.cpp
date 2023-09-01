@@ -8,15 +8,18 @@
 #include <vector>
 #include "../include/taskflow/taskflow.hpp"
 #include "../include/taskflow/algorithm/for_each.hpp"
+#include "../include/taskflow/algorithm/sort.hpp"
 #include "../include/taskflow/algorithm/reduce.hpp"
 #include "../include/taskflow/core/task.hpp"
 
-class Knn {
+bool sort_by_dist(const double* v1, const double* v2);
+
+class TaskflowKnn {
 private:
     int neighbours_number;
 
 public:
-    Knn(int k) : neighbours_number(k) {}
+    TaskflowKnn(int k) : neighbours_number(k) {}
 
     int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
         double* distances[3];
@@ -44,6 +47,14 @@ public:
                 });
             });
         executor.run(taskflow).wait();
+
+       /* taskflow.emplace([&]() {
+            taskflow.sort(index_order, index_order + dataset_size, [distances](int i, int j) {
+                return static_cast<int>(distances[0][i] - distances[0][j]);
+                });
+            });
+        executor.run(taskflow).wait();*/
+
 
         // Count label occurrences in the K nearest neighbors
         for (int i = 0; i < neighbours_number; i++) {
@@ -79,14 +90,15 @@ private:
         tf::Executor executor;
         tf::Taskflow taskflow;
 
-        int num_task = 4;
-
+        //int num_task = 4;
+        //int step_size = dataset_size / 13420;
+        
         // Parallelized loop using Taskflow's for_each_index algorithm
-        taskflow.for_each_index(0, dataset_size, dataset_size / 4, [&, y, x, feature_size](int j) {
-            if (x[j] == y) return;
-            distances[0][j] = this->euclidean_distance(y, x[j], feature_size);
-            distances[1][j] = x[j][0]; // Store outcome label
-            distances[2][j] = j; // Store index
+        taskflow.for_each_index(0, dataset_size, 1, [&, y, x, feature_size](int i) {
+            if (x[i] == y) return;
+            distances[0][i] = this->euclidean_distance(y, x[i], feature_size);
+            distances[1][i] = x[i][0]; // Store outcome label
+            distances[2][i] = i; // Store index
             });
 
         executor.run(taskflow).wait();
@@ -121,6 +133,7 @@ int main() {
 
     double** dataset = new double* [dataset_size];
     double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
+    //double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
 
     for (int i = 0; i < dataset_size; i++) {
         dataset[i] = new double[feature_size];
@@ -148,7 +161,7 @@ int main() {
     std::cout << "Number of records: " << index << std::endl;
 
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    Knn knn(3);
+    TaskflowKnn knn(3);
 
     int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
     std::cout << "Prediction: " << prediction << std::endl;
