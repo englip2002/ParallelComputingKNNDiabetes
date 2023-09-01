@@ -14,7 +14,12 @@
 #include "../include/taskflow/core/task.hpp"
 #pragma warning(disable:4146)
 
-bool sort_by_dist(const double* v1, const double* v2);
+struct MergeSortParams {
+    double** distances;
+    int datasetSize;
+    int low;
+    int high;
+};
 
 class TaskflowKnn {
 private:
@@ -35,28 +40,43 @@ public:
 
         get_knn(dataset, target, distances, dataset_size, feature_size);
 
-        std::mutex index_order_mutex;
+        // Parallelized sorting using Taskflow
+        tf::Executor executor;
+        tf::Taskflow taskflow;
+        
+
+        taskflow.emplace([&]() {
+           quick_sort(distances, 0, dataset_size - 1);
+           });
+        executor.run(taskflow).wait();
+        
+
+        //std::mutex distances_mutex;
+        //std::mutex index_order_mutex;
 
         int* index_order = new int[dataset_size];
         for (int i = 0; i < dataset_size; ++i) {
             index_order[i] = i;
         }
 
-        // Create a custom comparison function for sorting
-        auto compare_function = [&](int i, int j) {
-            std::lock_guard<std::mutex> lock(index_order_mutex);
-            double diff = distances[0][i] - distances[0][j];
-            return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
-        };
+        //// Create a thread-safe comparison function
+        //auto compare_function = [&](int i, int j) {
+        //    std::lock_guard<std::mutex> lock(distances_mutex);
+        //    double diff = distances[0][i] - distances[0][j];
+        //    return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
+        //};
 
-        // Parallelized sorting using Taskflow
-        tf::Executor executor;
-        tf::Taskflow taskflow;
+        //// Parallelized sorting using Taskflow
+        //tf::Executor executor;
+        //tf::Taskflow taskflow;
 
-        taskflow.emplace([&, index_order]() {
-            taskflow.sort(index_order, index_order + static_cast<int>(neighbours_number), compare_function);
-            });
-        executor.run(taskflow).wait();
+        //taskflow.emplace([&, index_order]() {
+        //    std::lock_guard<std::mutex> lock(index_order_mutex);
+        //    taskflow.sort(index_order, index_order + static_cast<int>(neighbours_number), compare_function);
+        //    });
+        //executor.run(taskflow).wait();
+
+       
 
         /*taskflow.emplace([&]() {
             taskflow.sort(index_order, index_order + static_cast<int>(neighbours_number), [&](int i, int j) {
@@ -88,6 +108,33 @@ public:
     }
 
 private:
+    static int partition(double** distances, int low, int high) {
+        double pivot = distances[0][high];
+        int i = low - 1;
+        for (int j = low; j < high; j++) {
+            if (distances[0][j] <= pivot) {
+                i++;
+                swap(distances, i, j);
+            }
+        }
+        swap(distances, i + 1, high);
+        return i + 1;
+    }
+
+    static void swap(double** distances, int i, int j) {
+        std::swap(distances[0][i], distances[0][j]);
+        std::swap(distances[1][i], distances[1][j]);
+        std::swap(distances[2][i], distances[2][j]);
+    }
+
+    static void quick_sort(double** distances, int low, int high) {
+        if (low < high) {
+            int pivotIndex = partition(distances, low, high);
+            quick_sort(distances, low, pivotIndex - 1);
+            quick_sort(distances, pivotIndex + 1, high);
+        }
+    }
+
     double euclidean_distance(const double* x, const double* y, int feature_size) {
         double l2 = 0.0;
         for (int i = 1; i < feature_size; i++) {
@@ -115,6 +162,7 @@ private:
 
         std::cout << "Number of euclidean run: " << dataset_size << std::endl;
     }
+
 };
 
 std::vector<double> parseLine(const std::string& line) {
