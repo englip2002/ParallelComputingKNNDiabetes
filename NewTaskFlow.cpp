@@ -50,14 +50,15 @@ public:
            });
         executor.run(taskflow).wait();
         
+        
 
         //std::mutex distances_mutex;
         //std::mutex index_order_mutex;
 
-        int* index_order = new int[dataset_size];
+        /*int* index_order = new int[dataset_size];
         for (int i = 0; i < dataset_size; ++i) {
             index_order[i] = i;
-        }
+        }*/
 
         //// Create a thread-safe comparison function
         //auto compare_function = [&](int i, int j) {
@@ -85,14 +86,19 @@ public:
             });
         executor.run(taskflow).wait();*/
 
+        for (int i = 0; i < 20; i++) {
+            std::cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+        }
 
         // Count label occurrences in the K nearest neighbors
         for (int i = 0; i < neighbours_number; i++) {
-            if (distances[1][index_order[i]] == 0) {
+            if (distances[1][i] == 0) {
                 zeros_count += 1;
+                std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;
             }
-            else if (distances[1][index_order[i]] == 1) {
+            else if (distances[1][i] == 1) {
                 ones_count += 1;
+                std::cout << "1: " << distances[0][i] << "," << distances[2][i] << std::endl;
             }
         }
 
@@ -102,7 +108,7 @@ public:
         delete[] distances[0];
         delete[] distances[1];
         delete[] distances[2];
-        delete[] index_order;
+        //delete[] index_order;
 
         return prediction;
     }
@@ -128,11 +134,48 @@ private:
     }
 
     static void quick_sort(double** distances, int low, int high) {
-        if (low < high) {
-            int pivotIndex = partition(distances, low, high);
-            quick_sort(distances, low, pivotIndex - 1);
-            quick_sort(distances, pivotIndex + 1, high);
+        tf::Executor executor;
+        tf::Taskflow taskflow;
+        std::stack<std::pair<int, int>> stack;
+        stack.push(std::make_pair(low, high));
+
+        while (!stack.empty()) {
+            std::pair<int, int> range = stack.top();
+            stack.pop();
+
+            int low = range.first;
+            int high = range.second;
+
+            if (low < high) {
+                int pivotIndex = partition(distances, low, high);
+
+                taskflow.emplace([&](tf::Subflow& sf) {
+                    sf.emplace([&]() {
+                        stack.push(std::make_pair(low, pivotIndex - 1));
+                        });
+                    sf.emplace([&]() {
+                        stack.push(std::make_pair(pivotIndex + 1, high));
+                        });
+                    });
+                //executor.run(taskflow);
+                //if (low < high) {
+                //    int pivotIndex = partition(distances, low, high);
+                //    //quick_sort(distances, low, pivotIndex - 1);
+                //    //quick_sort(distances, pivotIndex + 1, high);
+
+                //        taskflow.emplace([&](tf::Subflow& sf) {
+                //            sf.emplace([&]() {
+                //                quick_sort(distances, low, pivotIndex - 1);
+                //                });
+                //            sf.emplace([&]() {
+                //                quick_sort(distances, pivotIndex + 1, high);
+                //                });
+                //            });
+                //        executor.run(taskflow).wait();
+                //}
+            }
         }
+        
     }
 
     double euclidean_distance(const double* x, const double* y, int feature_size) {
