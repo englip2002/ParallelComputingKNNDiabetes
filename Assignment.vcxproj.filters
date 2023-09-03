@@ -33,6 +33,9 @@
     <ClCompile Include="NewTaskFlow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="try.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="diabetes_012.csv">

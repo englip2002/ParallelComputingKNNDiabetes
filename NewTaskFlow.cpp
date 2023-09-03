@@ -124,6 +124,7 @@ private:
             }
         }
         swap(distances, i + 1, high);
+        printf("A");
         return i + 1;
     }
 
@@ -131,6 +132,7 @@ private:
         std::swap(distances[0][i], distances[0][j]);
         std::swap(distances[1][i], distances[1][j]);
         std::swap(distances[2][i], distances[2][j]);
+        printf("B");    
     }
 
     static void quick_sort(double** distances, int low, int high) {
@@ -139,12 +141,15 @@ private:
         std::stack<std::pair<int, int>> stack;
         stack.push(std::make_pair(low, high));
 
+
         while (!stack.empty()) {
             std::pair<int, int> range = stack.top();
             stack.pop();
 
             int low = range.first;
             int high = range.second;
+
+            printf("C");
 
             if (low < high) {
                 int pivotIndex = partition(distances, low, high);
@@ -157,7 +162,7 @@ private:
                         stack.push(std::make_pair(pivotIndex + 1, high));
                         });
                     });
-                //executor.run(taskflow);
+                executor.run(taskflow);
                 //if (low < high) {
                 //    int pivotIndex = partition(distances, low, high);
                 //    //quick_sort(distances, low, pivotIndex - 1);
