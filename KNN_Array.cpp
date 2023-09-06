@@ -7,13 +7,6 @@
 #include <chrono>
 #include <vector>
 
-struct MergeSortParams {
-    double** distances;
-    int datasetSize;
-    int low;
-    int high;
-};
-
 class Knn {
 private:
 	int neighbours_number;

@@ -110,12 +110,12 @@ public:
 		int prediction = (zeros_count > ones_count) ? 0 : 1;
 
 		// Clean up memory
-		//delete[] distances[0];
-		//delete[] distances[1];
-		//delete[] distances[2];
-		//delete[] finalSortedDistances[0];
-		//delete[] finalSortedDistances[1];
-		//delete[] finalSortedDistances[2];
+		delete[] distances[0];
+		delete[] distances[1];
+		delete[] distances[2];
+		delete[] finalSortedDistances[0];
+		delete[] finalSortedDistances[1];
+		delete[] finalSortedDistances[2];
 		return prediction;
 	}
 
@@ -250,9 +250,9 @@ public:
 		int prediction = (zeros_count > ones_count) ? 0 : 1;
 
 		// Clean up memory
-		//delete[] distances[0];
-		//delete[] distances[1];
-		//delete[] distances[2];
+		delete[] distances[0];
+		delete[] distances[1];
+		delete[] distances[2];
 
 		return prediction;
 	}
