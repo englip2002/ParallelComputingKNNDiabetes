@@ -27,12 +27,6 @@
     <ClCompile Include="taskflowTry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="PPL.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="FileName.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="diabetes_012.csv">
@@ -50,6 +44,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="external\include\taskflow\taskflow.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="external\include\taskflow\algorithm\for_each.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="external\include\taskflow\algorithm\sort.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

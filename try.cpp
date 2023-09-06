@@ -6,12 +6,17 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#include <taskflow/taskflow.hpp>
 
-struct MergeSortParams {
-    double** distances;
-    int datasetSize;
-    int low;
-    int high;
+const int num_threads = 4;
+const int record_each_thread = 5;
+const int num_record_to_sort = 20;
+
+struct quickSortParams {
+	double** distances;
+	int datasetSize;
+	int low;
+	int high;
 };
 
 class Knn {
@@ -33,30 +38,66 @@ public:
 
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
-		quick_sort(distances, 0, dataset_size - 1);
+		tf::Taskflow taskflow;
 
-		for (int i = 0; i < 20; i++) {
-			std::cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+
+		// Add sorting tasks for each thread
+		for (int i = 0; i < num_threads; i++) {
+			int start = i * (dataset_size / 4);
+			int end = (i == num_threads - 1) ? (dataset_size) : ((i + 1) * dataset_size / 4);
+
+			taskflow.emplace([=, &distances]() {
+				quick_sort(distances, start, end - 1);
+				});
 		}
+
+		tf::Executor executor;
+		executor.run(taskflow).wait();
+
+		double* finalSortedDistances[3];
+		finalSortedDistances[0] = new double[num_record_to_sort];
+		finalSortedDistances[1] = new double[num_record_to_sort];
+		finalSortedDistances[2] = new double[num_record_to_sort];
+
+		//extract first 5 from each thread (shortest distance)
+		for (int i = 0; i < 3; i++) {
+			for (int k = 0; k < num_threads; k++) {
+				for (int j = 0; j < record_each_thread; j++) {
+					finalSortedDistances[i][(k * record_each_thread) + j] = distances[i][((dataset_size / 4) * k) + j];
+				}
+			}
+		}
+
+
+		//for (int i = 0; i < num_record_to_sort; i++) {
+		//	std::cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << std::endl;
+		//}
+		//std::cout << "\n";
+
+		//sort again
+		quick_sort(finalSortedDistances, 0, num_record_to_sort - 1);
+		/*for (int i = 0; i < num_record_to_sort; i++) {
+			std::cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << std::endl;
+		}*/
 
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][i] == 0) {
+			if (finalSortedDistances[1][i] == 0) {
 				zeros_count += 1;
-				std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;
+				std::cout << "0: " << finalSortedDistances[0][i] << "," << finalSortedDistances[2][i] << std::endl;
 			}
-			else if (distances[1][i] == 1) {
+			else if (finalSortedDistances[1][i] == 1) {
 				ones_count += 1;
-				std::cout << "1: " << distances[0][i] << "," << distances[2][i] << std::endl;
+				std::cout << "1: " << finalSortedDistances[0][i] << "," << finalSortedDistances[2][i] << std::endl;
 			}
 		}
 
 		int prediction = (zeros_count > ones_count) ? 0 : 1;
 
 		// Clean up memory
-		//delete[] distances[0];
-		//delete[] distances[1];
-		//delete[] distances[2];
+		delete[] distances[0];
+		delete[] distances[1];
+		delete[] distances[2];
 
 		return prediction;
 	}
@@ -90,24 +131,24 @@ private:
 		}
 	}
 
+	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
+		int count = 0;
+		for (int i = 0; i < dataset_size; i++) {
+			if (x[i] == y) continue; // do not use the same point
+			distances[0][count] = euclidean_distance(y, x[i], feature_size);
+			distances[1][count] = x[i][0]; // Store outcome label
+			distances[2][count] = i; // Store index
+			count++;
+		}
+		std::cout << "Number of euclidean run:" << count << std::endl;
+	}
+
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
 		for (int i = 1; i < feature_size; i++) {
 			l2 += std::pow((x[i] - y[i]), 2);
 		}
 		return std::sqrt(l2);
-	}
-
-	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
-		int count = 0;
-		for (int i = 0; i < dataset_size; i++) {
-			if (x[i] == y) continue; // do not use the same point
-			distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
-			distances[1][count] = x[i][0]; // Store outcome label
-			distances[2][count] = i; // Store index
-			count++;
-		}
-		std::cout << "Number of euclidean run:" << count << std::endl;
 	}
 };
 
@@ -132,12 +173,10 @@ std::vector<double> parseLine(const std::string& line) {
 int main() {
 	std::string filename = "diabetes_binary.csv";
 
-	//const int dataset_size = 253681; 
 	const int dataset_size = 53681;
 	const int feature_size = 22;
 
 	double** dataset = new double* [dataset_size];
-	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
 	double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
 
 	// Allocate memory for dataset and target
@@ -167,8 +206,7 @@ int main() {
 
 	std::cout << "Number of records: " << index << std::endl;
 
-	//Knn
-#pragma region Knn
+	// Knn
 	std::cout << "\n\nKNN: " << std::endl;
 	std::chrono::steady_clock::time_point knnBegin = std::chrono::steady_clock::now();
 	Knn knn(3); // Use K=3
@@ -188,7 +226,6 @@ int main() {
 
 	std::chrono::steady_clock::time_point knnEnd = std::chrono::steady_clock::now();
 	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(knnEnd - knnBegin).count() << "[µs]" << std::endl;
-#pragma endregion
 
 	// Deallocate memory for dataset
 	for (int i = 0; i < dataset_size; i++) {
