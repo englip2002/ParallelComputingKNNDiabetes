@@ -6,13 +6,20 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#include <mutex>
 #include "../include/taskflow/taskflow.hpp"
 #include "../include/taskflow/algorithm/for_each.hpp"
 #include "../include/taskflow/algorithm/sort.hpp"
 #include "../include/taskflow/algorithm/reduce.hpp"
 #include "../include/taskflow/core/task.hpp"
+#pragma warning(disable:4146)
 
-bool sort_by_dist(const double* v1, const double* v2);
+struct MergeSortParams {
+    double** distances;
+    int datasetSize;
+    int low;
+    int high;
+};
 
 class TaskflowKnn {
 private:
@@ -33,36 +40,65 @@ public:
 
         get_knn(dataset, target, distances, dataset_size, feature_size);
 
-        int* index_order = new int[dataset_size];
-        for (int i = 0; i < dataset_size; ++i) {
-            index_order[i] = i;
-        }
-
         // Parallelized sorting using Taskflow
         tf::Executor executor;
         tf::Taskflow taskflow;
-        taskflow.emplace([&]() {
-            std::sort(index_order, index_order + dataset_size, [distances](int i, int j) {
-                return distances[0][i] < distances[0][j];
-                });
-            });
-        executor.run(taskflow).wait();
+        
 
-       /* taskflow.emplace([&]() {
-            taskflow.sort(index_order, index_order + dataset_size, [distances](int i, int j) {
+        taskflow.emplace([&]() {
+           quick_sort(distances, 0, dataset_size - 1);
+           });
+        executor.run(taskflow).wait();
+        
+        
+
+        //std::mutex distances_mutex;
+        //std::mutex index_order_mutex;
+
+        /*int* index_order = new int[dataset_size];
+        for (int i = 0; i < dataset_size; ++i) {
+            index_order[i] = i;
+        }*/
+
+        //// Create a thread-safe comparison function
+        //auto compare_function = [&](int i, int j) {
+        //    std::lock_guard<std::mutex> lock(distances_mutex);
+        //    double diff = distances[0][i] - distances[0][j];
+        //    return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
+        //};
+
+        //// Parallelized sorting using Taskflow
+        //tf::Executor executor;
+        //tf::Taskflow taskflow;
+
+        //taskflow.emplace([&, index_order]() {
+        //    std::lock_guard<std::mutex> lock(index_order_mutex);
+        //    taskflow.sort(index_order, index_order + static_cast<int>(neighbours_number), compare_function);
+        //    });
+        //executor.run(taskflow).wait();
+
+       
+
+        /*taskflow.emplace([&]() {
+            taskflow.sort(index_order, index_order + static_cast<int>(neighbours_number), [&](int i, int j) {
                 return static_cast<int>(distances[0][i] - distances[0][j]);
                 });
             });
         executor.run(taskflow).wait();*/
 
+        for (int i = 0; i < 20; i++) {
+            std::cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+        }
 
         // Count label occurrences in the K nearest neighbors
         for (int i = 0; i < neighbours_number; i++) {
-            if (distances[1][index_order[i]] == 0) {
+            if (distances[1][i] == 0) {
                 zeros_count += 1;
+                std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;
             }
-            else if (distances[1][index_order[i]] == 1) {
+            else if (distances[1][i] == 1) {
                 ones_count += 1;
+                std::cout << "1: " << distances[0][i] << "," << distances[2][i] << std::endl;
             }
         }
 
@@ -72,12 +108,81 @@ public:
         delete[] distances[0];
         delete[] distances[1];
         delete[] distances[2];
-        delete[] index_order;
+        //delete[] index_order;
 
         return prediction;
     }
 
 private:
+    static int partition(double** distances, int low, int high) {
+        double pivot = distances[0][high];
+        int i = low - 1;
+        for (int j = low; j < high; j++) {
+            if (distances[0][j] <= pivot) {
+                i++;
+                swap(distances, i, j);
+            }
+        }
+        swap(distances, i + 1, high);
+        printf("A");
+        return i + 1;
+    }
+
+    static void swap(double** distances, int i, int j) {
+        std::swap(distances[0][i], distances[0][j]);
+        std::swap(distances[1][i], distances[1][j]);
+        std::swap(distances[2][i], distances[2][j]);
+        printf("B");    
+    }
+
+    static void quick_sort(double** distances, int low, int high) {
+        tf::Executor executor;
+        tf::Taskflow taskflow;
+        std::stack<std::pair<int, int>> stack;
+        stack.push(std::make_pair(low, high));
+
+
+        while (!stack.empty()) {
+            std::pair<int, int> range = stack.top();
+            stack.pop();
+
+            int low = range.first;
+            int high = range.second;
+
+            printf("C");
+
+            if (low < high) {
+                int pivotIndex = partition(distances, low, high);
+
+                taskflow.emplace([&](tf::Subflow& sf) {
+                    sf.emplace([&]() {
+                        stack.push(std::make_pair(low, pivotIndex - 1));
+                        });
+                    sf.emplace([&]() {
+                        stack.push(std::make_pair(pivotIndex + 1, high));
+                        });
+                    });
+                executor.run(taskflow);
+                //if (low < high) {
+                //    int pivotIndex = partition(distances, low, high);
+                //    //quick_sort(distances, low, pivotIndex - 1);
+                //    //quick_sort(distances, pivotIndex + 1, high);
+
+                //        taskflow.emplace([&](tf::Subflow& sf) {
+                //            sf.emplace([&]() {
+                //                quick_sort(distances, low, pivotIndex - 1);
+                //                });
+                //            sf.emplace([&]() {
+                //                quick_sort(distances, pivotIndex + 1, high);
+                //                });
+                //            });
+                //        executor.run(taskflow).wait();
+                //}
+            }
+        }
+        
+    }
+
     double euclidean_distance(const double* x, const double* y, int feature_size) {
         double l2 = 0.0;
         for (int i = 1; i < feature_size; i++) {
@@ -105,6 +210,7 @@ private:
 
         std::cout << "Number of euclidean run: " << dataset_size << std::endl;
     }
+
 };
 
 std::vector<double> parseLine(const std::string& line) {
@@ -132,8 +238,8 @@ int main() {
     const int feature_size = 22;
 
     double** dataset = new double* [dataset_size];
-    double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
-    //double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+    //double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
+    double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
 
     for (int i = 0; i < dataset_size; i++) {
         dataset[i] = new double[feature_size];

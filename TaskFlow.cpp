@@ -9,6 +9,7 @@
 #include "../include/taskflow/taskflow.hpp"
 #include "../include/taskflow/algorithm/for_each.hpp"
 #include "../include/taskflow/algorithm/sort.hpp"
+#pragma warning(disable:4146)
 
 bool sort_by_dist(const double* v1, const double* v2);
 
@@ -141,24 +142,20 @@ public:
             index_order[i] = i;
         }
 
+        // Create a custom comparison function for sorting
+        auto compare_function = [&](int i, int j) {
+            double diff = distances[0][i] - distances[0][j];
+            return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
+        };
+
         // Parallelized sorting using Taskflow
         tf::Executor executor;
         tf::Taskflow taskflow;
 
-        taskflow.emplace([&]() {
-            std::sort(index_order, index_order + dataset_size, [distances](int i, int j) {
-                return distances[0][i] < distances[0][j];
-                });
+        taskflow.emplace([&, index_order]() {
+            taskflow.sort(index_order, index_order + static_cast<int>(neighbours_number), compare_function);
             });
         executor.run(taskflow).wait();
-
-        /* taskflow.emplace([&]() {
-             taskflow.sort(index_order, index_order + dataset_size, [distances](int i, int j) {
-                 return static_cast<int>(distances[0][i] - distances[0][j]);
-                 });
-             });
-         executor.run(taskflow).wait();*/
-
 
          // Count label occurrences in the K nearest neighbors
         for (int i = 0; i < neighbours_number; i++) {
