@@ -8,7 +8,7 @@
 #include <vector>
 #include <ppl.h>
 #include <concurrent_vector.h>
-#include <agents.h>
+#include <concurrent_unordered_set.h>
 #include <ppltasks.h>
 
 using namespace std;
@@ -20,23 +20,41 @@ private:
 public:
 	Knn(int k) : neighbours_number(k) {}
 
-	int predict_class(concurrent_vector<vector<double>> dataset, const vector<double> target, int dataset_size, int feature_size) {
-
+	int predict_class_parallel_algorithm(concurrent_vector<vector<double>> dataset, const vector<double> target, int dataset_size, int feature_size) {
+		concurrent_vector<double> euclideanDistance;
 		int zeros_count = 0;
 		int ones_count = 0;
+		
 
-		get_knn(dataset, target, dataset_size, feature_size);
-
-
+		/*for (int i = 0; i < dataset_size; i++)
+		{
+			if (dataset.at(i) != target) {
+				euclideanList.push_back(euclidean_distance(dataset.at(i), target, feature_size));
+			}
+		}*/
+		parallel_for(0, dataset_size, [&](int value) {
+			if (dataset.at(value) != target) {
+				double l2 = 0.0;
+				for (int i = 1; i < feature_size; i++)
+				{
+					l2 += pow((dataset.at(value).at(i) - target[i]), 2);
+				}
+				euclideanDistance.push_back(round(sqrt(l2) * 10000) + (dataset.at(value).at(0) + 1));
+			}
+			});
+		cout << "Number of euclidean run:" << euclideanDistance.size() << endl;
 		
 
 
+		parallel_sort(begin(euclideanDistance),end(euclideanDistance));
+		//nth_element(begin(euclideanDistance), begin(euclideanDistance) + neighbours_number, end(euclideanDistance));
+
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][index_order[i]] == 0) {
+			if (fmod(euclideanDistance[i], 2) == 1) {
 				zeros_count += 1;
 			}
-			else if (distances[1][index_order[i]] == 1) {
+			else if (fmod(euclideanDistance[i], 2) == 0) {
 				ones_count += 1;
 			}
 		}
@@ -47,26 +65,7 @@ public:
 	}
 
 private:
-	double euclidean_distance(const vector<double> x, const vector<double> y, int feature_size) {
-		double l2 = 0.0;
-		for (int i = 1; i < feature_size; i++) {
-			l2 += pow((x[i] - y[i]), 2);
-		}
-		return  sqrt(l2);
-	}
-
-
-
-	concurrent_vector<vector<double>> get_knn(concurrent_vector<vector<double>> dataset, const vector<double> target, int dataset_size, int feature_size) {
-		concurrent_vector<vector<double>> euclideanList;
-		parallel_for(0, dataset_size, [&](int i) {
-			if (dataset.at(i) != target) {
-				euclideanList.push_back({this->euclidean_distance(dataset.at(i), target, feature_size), dataset.at(i).at(0) });
-			}
-			});
-	cout << "Number of euclidean run:" << euclideanList.size() << endl;
-	return euclideanList;
-}
+	
 
 };
 class
@@ -99,8 +98,6 @@ int main() {
 	concurrent_vector<vector<double>> dataset;
 	vector<double> target = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
 
-
-
 	// Read data from CSV and populate dataset and target
 	ifstream file(filename);
 	if (!file.is_open()) {
@@ -120,25 +117,22 @@ int main() {
 	}
 	cout << "Number of records: " << index << endl;
 
+	Knn knn(5); // Use K=3
 	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
-	//Knn knn(3); // Use K=3
-
-	//int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
-	//cout << "Prediction: " << prediction << endl;
-
-	//if (prediction == 0) {
-	//	cout << "Predicted class: Negative" << endl;
-	//}
-	//else if (prediction == 1) {
-	//	cout << "Predicted class: Prediabetes or Diabetes" << endl;
-	//}
-	//else {
-	//	cout << "Prediction could not be made." << endl;
-	//}
-
+	int prediction = knn.predict_class_parallel_algorithm(dataset, target, dataset_size, feature_size);
 	chrono::steady_clock::time_point end = chrono::steady_clock::now();
-	cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs]" << endl;
+	cout << "Time difference of KNN using Parallel Algorithm = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs]" << endl;
+	cout << "Prediction: " << prediction << endl;
 
+	if (prediction == 0) {
+		cout << "Predicted class: Negative" << endl;
+	}
+	else if (prediction == 1) {
+		cout << "Predicted class: Prediabetes or Diabetes" << endl;
+	}
+	else {
+		cout << "Prediction could not be made." << endl;
+	}
 
 
 	return 0;
