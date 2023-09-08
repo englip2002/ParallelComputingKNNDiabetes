@@ -10,9 +10,9 @@
 #include <pthread.h>
 
 const int num_threads = 4;
-int part = 0;
-const int record_each_thread = 5;
+const int best_record_each_thread = 5;
 const int num_record_to_sort = 20;
+const int k_value = 3;
 
 struct PthreadParams {
 	double** dataset;
@@ -27,7 +27,6 @@ struct PthreadParams {
 
 struct quickSortParams {
 	double** distances;
-	int datasetSize;
 	int low;
 	int high;
 };
@@ -54,8 +53,13 @@ public:
 		pthread_t sortThreads[num_threads];
 		quickSortParams sortParams[num_threads];
 
+		int rows_per_thread = dataset_size / num_threads;
 		for (int i = 0; i < num_threads; i++) {
-			sortParams[i] = { distances, dataset_size, 0, dataset_size };
+			//calculate the start and end for each thread
+			int low = i * rows_per_thread;
+			int high = (i == num_threads - 1) ? dataset_size : (i + 1) * rows_per_thread;
+			sortParams[i] = { distances, low, high };
+
 			pthread_create(&sortThreads[i], NULL, quick_sort_parallel, &sortParams[i]);
 		}
 
@@ -68,11 +72,14 @@ public:
 		finalSortedDistances[1] = new double[num_record_to_sort];
 		finalSortedDistances[2] = new double[num_record_to_sort];
 
-		//extract first 5 from each thread (shortest distance)
+		//extract first 5 from each thread (shortest distance for each thread)
+		//i < 3 because distance is 2d array and distance[3][i] is largest
 		for (int i = 0; i < 3; i++) {
+			// k < num_thread is to extract value from each thread
 			for (int k = 0; k < num_threads; k++) {
-				for (int j = 0; j < record_each_thread; j++) {
-					finalSortedDistances[i][(k * record_each_thread) + j] = distances[i][((dataset_size / 4) * k) + j];
+				// to extract first 5 record from each thread
+				for (int j = 0; j < best_record_each_thread; j++) {
+					finalSortedDistances[i][(k * best_record_each_thread) + j] = distances[i][((dataset_size / 4) * k) + j];
 				}
 			}
 		}
@@ -83,7 +90,9 @@ public:
 		//std::cout << "\n";
 
 		//sort again
+		//the number of record need to serial sort is rapidly decreased
 		quick_sort(finalSortedDistances, 0, num_record_to_sort - 1);
+
 		//for (int i = 0; i < num_record_to_sort; i++) {
 		//	std::cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << std::endl;
 		//}
@@ -95,7 +104,6 @@ public:
 		int ones_count = 0;
 
 		//Count label occurrences in the K nearest neighbors
-		//donno why the first is the memory problem
 		for (int i = 0; i < neighbours_number; i++) {
 			if (finalSortedDistances[1][i] == 0) {
 				zeros_count += 1;
@@ -107,6 +115,7 @@ public:
 			}
 		}
 
+		//return prediction
 		int prediction = (zeros_count > ones_count) ? 0 : 1;
 
 		// Clean up memory
@@ -122,29 +131,30 @@ public:
 
 private:
 	static void* quick_sort_parallel(void* arg) {
+		//recieve parameter
 		quickSortParams* params = static_cast<quickSortParams*>(arg);
-		// which part out of 4 parts
-		int thread_part = part++;
 
-		// calculating start and end indices
-		int rows_per_thread = params->datasetSize / num_threads;
-		int start = thread_part * rows_per_thread;
-		int end = (thread_part == num_threads - 1) ? params->datasetSize : (thread_part + 1) * rows_per_thread;
-
-		quick_sort(params->distances, start, end - 1);
+		//call sort
+		quick_sort(params->distances, params->low, params->high - 1);
 
 		return nullptr;
 	}
 
+	// Function to partition the array into two sub-arrays and return the index of the pivot element
 	static int partition(double** distances, int low, int high) {
+		// Choose the last element as the pivot
 		double pivot = distances[0][high];
+		// Index of the smaller element
 		int i = low - 1;
+		//check if value of distance[0] is lesser than pivot value, if yes swap
+		//to move shorter distance to left
 		for (int j = low; j < high; j++) {
 			if (distances[0][j] <= pivot) {
 				i++;
 				swap(distances, i, j);
 			}
 		}
+		//placing the pivot in the correct position
 		swap(distances, i + 1, high);
 		return i + 1;
 	}
@@ -158,24 +168,29 @@ private:
 	static void quick_sort(double** distances, int low, int high) {
 		if (low < high) {
 			int pivotIndex = partition(distances, low, high);
+			// Recursively sort the sub-arrays
 			quick_sort(distances, low, pivotIndex - 1);
 			quick_sort(distances, pivotIndex + 1, high);
 		}
 	}
 
+	//to calculate euclidean distance
 	static double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
+		//loop through each label in a row to calculate distance
 		for (int i = 1; i < feature_size; i++) {
 			l2 += std::pow((x[i] - y[i]), 2);
 		}
 		return std::sqrt(l2);
 	}
 
+	//function to be parse to pthread for multi-threading
 	static void* compute_distances(void* arg) {
+		//recieve parameters
 		PthreadParams* params = static_cast<PthreadParams*>(arg);
 		int count = 0;
 
-		//different thread is accessing different index range
+		//different thread is accessing different index range, so no race condition
 		for (int i = params->start; i < params->end; i++) {
 			if (params->dataset[i] == params->target) continue; // do not use the same point
 			params->distances[0][i] = euclidean_distance(params->target, params->dataset[i], params->feature_size);
@@ -188,10 +203,13 @@ private:
 		return nullptr;
 	}
 
+	//the function to be call to get KNN 
 	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
-		PthreadParams params[num_threads];
-		pthread_t thread_ids[num_threads];
+		//create parameters to be parse to compute_distance function
+		PthreadParams knnParams[num_threads];
+		pthread_t knnThreads[num_threads];
 
+		//to calculate the number of dataset need to handled by each thread
 		int rows_per_thread = dataset_size / num_threads;
 
 		for (int i = 0; i < num_threads; i++) {
@@ -200,12 +218,14 @@ private:
 			int end = (i == num_threads - 1) ? dataset_size : (i + 1) * rows_per_thread;
 
 			//store parameter
-			params[i] = { x, y, distances, dataset_size, feature_size, start, end ,i };
-			pthread_create(&thread_ids[i], nullptr, compute_distances, &params[i]);
+			knnParams[i] = { x, y, distances, dataset_size, feature_size, start, end ,i };
+			//create and assign task to thread
+			pthread_create(&knnThreads[i], nullptr, compute_distances, &knnParams[i]);
 		}
 
+		//wait all thread to complete
 		for (int i = 0; i < num_threads; i++) {
-			pthread_join(thread_ids[i], nullptr);
+			pthread_join(knnThreads[i], nullptr);
 		}
 	}
 };
@@ -231,9 +251,9 @@ public:
 
 		quick_sort(distances, 0, dataset_size - 1);
 
-		for (int i = 0; i < num_record_to_sort; i++) {
+		/*for (int i = 0; i < num_record_to_sort; i++) {
 			std::cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
-		}
+		}*/
 
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
@@ -368,7 +388,7 @@ int main() {
 	std::cout << "\n\nPthread KNN: " << std::endl;
 	std::chrono::steady_clock::time_point pthreadBegin = std::chrono::steady_clock::now();
 
-	PthreadKnn pthreadknn(3); // Use K=3
+	PthreadKnn pthreadknn(k_value); // Use K=3
 	int pthreadPrediction = pthreadknn.predict_class(dataset, target, dataset_size, feature_size);
 	std::cout << "Pthread Prediction: " << pthreadPrediction << std::endl;
 
@@ -390,7 +410,7 @@ int main() {
 #pragma region Knn
 	std::cout << "\n\nKNN: " << std::endl;
 	std::chrono::steady_clock::time_point knnBegin = std::chrono::steady_clock::now();
-	Knn knn(3); // Use K=3
+	Knn knn(k_value); // Use K=3
 
 	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
 	std::cout << "Prediction: " << prediction << std::endl;

@@ -9,7 +9,7 @@
 #include <taskflow/taskflow.hpp>
 
 const int num_threads = 4;
-const int record_each_thread = 5;
+const int best_record_each_thread = 5;
 const int num_record_to_sort = 20;
 
 struct quickSortParams {
@@ -62,8 +62,8 @@ public:
 		//extract first 5 from each thread (shortest distance)
 		for (int i = 0; i < 3; i++) {
 			for (int k = 0; k < num_threads; k++) {
-				for (int j = 0; j < record_each_thread; j++) {
-					finalSortedDistances[i][(k * record_each_thread) + j] = distances[i][((dataset_size / 4) * k) + j];
+				for (int j = 0; j < best_record_each_thread; j++) {
+					finalSortedDistances[i][(k * best_record_each_thread) + j] = distances[i][((dataset_size / 4) * k) + j];
 				}
 			}
 		}
