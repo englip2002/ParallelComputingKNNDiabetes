@@ -10,6 +10,8 @@
 #include "../include/taskflow/taskflow.hpp"
 #include "../include/taskflow/algorithm/for_each.hpp"
 
+const int num_threads = 4;
+
 struct MergeSortParams {
 	double** distances;
 	int datasetSize;
@@ -149,38 +151,15 @@ private:
 
 
 	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
-		tf::Executor executor;
-		tf::Taskflow taskflow;
 		int count = 0;
-		std::mutex distancesMutex;
-
-		// Define the number of tasks
-		int num_tasks = 4;
-		int step_size = dataset_size / num_tasks;
-		int remaining = dataset_size % num_tasks;
-
-		for (int task_id = 0; task_id < num_tasks; task_id++) {
-			int start_index = task_id * step_size;
-			int end_index = start_index + step_size + (task_id < remaining ? 1 : 0);
-
-			taskflow.for_each_index(start_index, end_index, 1, [&, y, x, feature_size, task_id](int i) {
-				if (x[i] == y) return;
-				std::lock_guard<std::mutex> lock(distancesMutex);
-				distances[0][i] = this->euclidean_distance(y, x[i], feature_size);
-				distances[1][i] = x[i][0]; // Store outcome label
-				distances[2][i] = i; // Store index
-				count++;
-				});
+		for (int i = 0; i < dataset_size; i++) {
+			if (x[i] == y) continue; // do not use the same point
+			distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
+			distances[1][count] = x[i][0]; // Store outcome label
+			distances[2][count] = i; // Store index
+			count++;
 		}
-
-		executor.run(taskflow).wait();
-
-		// Print the count for each task
-		for (int task_id = 0; task_id < num_tasks; ++task_id) {
-			int task_count = step_size + (task_id < remaining ? 1 : 0);
-			std::cout << "Task " << task_id << " - Number of euclidean run: " << task_count << std::endl;
-		}
-
+		std::cout << "Number of euclidean run:" << count << std::endl;
 	}
 
 };
@@ -206,11 +185,16 @@ public:
 
 		tf::Taskflow taskflow;
 
+		for (int i = 0; i < num_threads; i++) {
+		    int start = i * (dataset_size / 4);
+		    int end = (i == num_threads - 1) ? (dataset_size) : ((i + 1) * dataset_size / 4);
+
 		// Add sorting task for merge sort
-		MergeSortParams params{ distances, dataset_size, 0, dataset_size - 1 };
+		MergeSortParams params{ distances, dataset_size, start, end };
 		taskflow.emplace([params]() {
 			parallel_merge_sort(params);
 			});
+		}
 
 		tf::Executor executor;
 		executor.run(taskflow).wait();
