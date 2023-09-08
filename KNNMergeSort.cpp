@@ -17,6 +17,8 @@ struct MergeSortParams {
 	int datasetSize;
 	int low;
 	int high;
+	int start;
+	int end;
 };
 
 class SerialMergeSortKnn {
@@ -190,8 +192,8 @@ public:
 		    int end = (i == num_threads - 1) ? (dataset_size) : ((i + 1) * dataset_size / 4);
 
 		// Add sorting task for merge sort
-		MergeSortParams params{ distances, dataset_size, start, end };
-		taskflow.emplace([params]() {
+		taskflow.emplace([=, &distances]() {
+			MergeSortParams params{ distances, dataset_size, start, end };
 			parallel_merge_sort(params);
 			});
 		}
@@ -337,6 +339,8 @@ private:
 				distances[2][i] = i; // Store index
 				count++;
 				});
+			/*int task_count = step_size + (task_id < remaining ? 1 : 0);
+			std::cout << "Task " << task_id << " - Number of euclidean run: " << task_count << std::endl;*/
 		}
 
 		executor.run(taskflow).wait();
