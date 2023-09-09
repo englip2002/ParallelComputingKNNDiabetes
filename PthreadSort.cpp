@@ -9,9 +9,9 @@
 #define HAVE_STRUCT_TIMESPEC
 #include <pthread.h>
 
-const int num_threads = 4;
+const int num_threads = 8;
 const int best_record_each_thread = 5;
-const int num_record_to_sort = 20;
+const int num_record_to_sort = num_threads * best_record_each_thread;
 const int k_value = 3;
 
 struct PthreadParams {
@@ -46,7 +46,10 @@ public:
 		distances[1] = new double[dataset_size];
 		distances[2] = new double[dataset_size];
 
+		//std::chrono::steady_clock::time_point knnBegin = std::chrono::steady_clock::now();
 		get_knn(dataset, target, distances, dataset_size, feature_size);
+		//std::chrono::steady_clock::time_point knnEnd = std::chrono::steady_clock::now();
+		//std::cout << "KNN = " << std::chrono::duration_cast<std::chrono::microseconds>(knnEnd - knnBegin).count() << "[µs]" << std::endl;
 
 #pragma region quickSorting
 		// creating 4 threads
@@ -79,7 +82,7 @@ public:
 			for (int k = 0; k < num_threads; k++) {
 				// to extract first 5 record from each thread
 				for (int j = 0; j < best_record_each_thread; j++) {
-					finalSortedDistances[i][(k * best_record_each_thread) + j] = distances[i][((dataset_size / 4) * k) + j];
+					finalSortedDistances[i][(k * best_record_each_thread) + j] = distances[i][((dataset_size / num_threads) * k) + j];
 				}
 			}
 		}
@@ -349,7 +352,8 @@ int main() {
 	std::string filename = "diabetes_binary.csv";
 
 	//const int dataset_size = 253681; 
-	const int dataset_size = 53681;
+	const int dataset_size = 53681; 
+	//const int dataset_size = 100000;
 	const int feature_size = 22;
 
 	double** dataset = new double* [dataset_size];
