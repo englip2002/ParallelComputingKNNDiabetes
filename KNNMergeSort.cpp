@@ -186,19 +186,23 @@ public:
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
 		tf::Taskflow taskflow;
+		tf::Executor executor;
+
+		// Adjust the granularity as needed
+		int task_size = dataset_size / num_threads;
 
 		for (int i = 0; i < num_threads; i++) {
-		    int start = i * (dataset_size / 4);
-		    int end = (i == num_threads - 1) ? (dataset_size) : ((i + 1) * dataset_size / 4);
+			int start = i * task_size;
+			int end = (i == num_threads - 1) ? (dataset_size - 1) : ((i + 1) * task_size);
 
-		// Add sorting task for merge sort
-		taskflow.emplace([=, &distances]() {
-			MergeSortParams params{ distances, dataset_size, start, end };
-			parallel_merge_sort(params);
-			});
+			auto merge_sort_task = [=, &distances]() {
+				MergeSortParams params{ distances, dataset_size, start, end };
+				parallel_merge_sort(params);
+			};
+
+			taskflow.emplace(merge_sort_task);
 		}
 
-		tf::Executor executor;
 		executor.run(taskflow).wait();
 
 		// Count label occurrences in the K nearest neighbors
@@ -294,6 +298,24 @@ private:
 	}
 
 	static void parallel_merge_sort(MergeSortParams params) {
+		//This cause the wrong sorting
+		/*int low = params.start;
+		int high = params.end;*/
+
+		int low = params.low;
+		int high = params.high;
+
+		if (params.low < high) {
+			int middle = low + (high - low) / 2;
+
+			parallel_merge_sort({ params.distances, params.datasetSize, low, middle });
+			parallel_merge_sort({ params.distances, params.datasetSize, middle + 1, high });
+
+			merge(params.distances, low, middle, high);
+		}
+	}
+
+	/*static void parallel_merge_sort(MergeSortParams params) {
 		int low = params.low;
 		int high = params.high;
 
@@ -305,7 +327,7 @@ private:
 
 			merge(params.distances, low, middle, high);
 		}
-	}
+	}*/
 
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
@@ -315,43 +337,69 @@ private:
 		return std::sqrt(l2);
 	}
 
-
+	//More faster
 	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
 		tf::Executor executor;
 		tf::Taskflow taskflow;
 		int count = 0;
 		std::mutex distancesMutex;
 
-		// Define the number of tasks
-		int num_tasks = 4;
-		int step_size = dataset_size / num_tasks;
-		int remaining = dataset_size % num_tasks;
+		// Create a lambda function to be used for the for_each_index task
+		auto task_lambda = [&, y, x, feature_size](int i) {
+			std::lock_guard<std::mutex> lock(distancesMutex);
+			if (x[i] == y) return; // do not use the same point
+			distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
+			distances[1][count] = x[i][0]; // Store outcome label
+			distances[2][count] = i; // Store index
+			count++;
+		};
 
-		for (int task_id = 0; task_id < num_tasks; task_id++) {
-			int start_index = task_id * step_size;
-			int end_index = start_index + step_size + (task_id < remaining ? 1 : 0);
+		// Create the for_each_index tasks and add them to the taskflow
+		taskflow.for_each_index(0, dataset_size, 1, task_lambda);
 
-			taskflow.for_each_index(start_index, end_index, 1, [&, y, x, feature_size, task_id](int i) {
-				if (x[i] == y) return;
-				std::lock_guard<std::mutex> lock(distancesMutex);
-				distances[0][i] = this->euclidean_distance(y, x[i], feature_size);
-				distances[1][i] = x[i][0]; // Store outcome label
-				distances[2][i] = i; // Store index
-				count++;
-				});
-			/*int task_count = step_size + (task_id < remaining ? 1 : 0);
-			std::cout << "Task " << task_id << " - Number of euclidean run: " << task_count << std::endl;*/
-		}
-
+		// Run the taskflow
 		executor.run(taskflow).wait();
 
-		// Print the count for each task
-		for (int task_id = 0; task_id < num_tasks; ++task_id) {
-			int task_count = step_size + (task_id < remaining ? 1 : 0);
-			std::cout << "Task " << task_id << " - Number of euclidean run: " << task_count << std::endl;
-		}
-
+		// Print the count
+		std::cout << "Number of euclidean run:" << count << std::endl;
 	}
+
+	//void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
+	//	tf::Executor executor;
+	//	tf::Taskflow taskflow;
+	//	int count = 0;
+	//	std::mutex distancesMutex;
+
+	//	// Define the number of tasks
+	//	int num_tasks = 4;
+	//	int step_size = dataset_size / num_tasks;
+	//	int remaining = dataset_size % num_tasks;
+
+	//	for (int task_id = 0; task_id < num_tasks; task_id++) {
+	//		int start_index = task_id * step_size;
+	//		int end_index = start_index + step_size + (task_id < remaining ? 1 : 0);
+
+	//		taskflow.for_each_index(start_index, end_index, 1, [&, y, x, feature_size, task_id](int i) {
+	//			if (x[i] == y) return;
+	//			std::lock_guard<std::mutex> lock(distancesMutex);
+	//			distances[0][i] = this->euclidean_distance(y, x[i], feature_size);
+	//			distances[1][i] = x[i][0]; // Store outcome label
+	//			distances[2][i] = i; // Store index
+	//			count++;
+	//			});
+	//		/*int task_count = step_size + (task_id < remaining ? 1 : 0);
+	//		std::cout << "Task " << task_id << " - Number of euclidean run: " << task_count << std::endl;*/
+	//	}
+
+	//	executor.run(taskflow).wait();
+
+	//	// Print the count for each task
+	//	for (int task_id = 0; task_id < num_tasks; ++task_id) {
+	//		int task_count = step_size + (task_id < remaining ? 1 : 0);
+	//		std::cout << "Task " << task_id << " - Number of euclidean run: " << task_count << std::endl;
+	//	}
+
+	//}
 
 };
 
