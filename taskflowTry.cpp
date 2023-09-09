@@ -8,7 +8,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
-#include "taskflow/taskflow/taskflow.hpp"
+#include "../include/taskflow/taskflow.hpp"
 
 bool sort_by_dist(const double* v1, const double* v2);
 
