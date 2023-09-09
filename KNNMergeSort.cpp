@@ -191,17 +191,17 @@ public:
 		// Adjust the granularity as needed
 		int task_size = dataset_size / num_threads;
 
-		for (int i = 0; i < num_threads; i++) {
+		/*for (int i = 0; i < num_threads; i++) {
 			int start = i * task_size;
-			int end = (i == num_threads - 1) ? (dataset_size - 1) : ((i + 1) * task_size);
+			int end = (i == num_threads - 1) ? (dataset_size - 1) : ((i + 1) * task_size);*/
 
-			auto merge_sort_task = [=, &distances]() {
-				MergeSortParams params{ distances, dataset_size, start, end };
-				parallel_merge_sort(params);
-			};
+		auto merge_sort_task = [=, &distances]() {
+			MergeSortParams params{ distances, dataset_size, 0, dataset_size - 1 };
+			parallel_merge_sort(params);
+		};
 
-			taskflow.emplace(merge_sort_task);
-		}
+		taskflow.emplace(merge_sort_task);
+		//}
 
 		executor.run(taskflow).wait();
 
@@ -337,21 +337,20 @@ private:
 		return std::sqrt(l2);
 	}
 
-	//More faster
+	//The most fastest with using the atomic counter 
+	//Passing a lambda function as a parameter to run 
 	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
 		tf::Executor executor;
 		tf::Taskflow taskflow;
-		int count = 0;
-		std::mutex distancesMutex;
+		std::atomic<int> count(0);  // Use an atomic counter for thread safety
 
 		// Create a lambda function to be used for the for_each_index task
-		auto task_lambda = [&, y, x, feature_size](int i) {
-			std::lock_guard<std::mutex> lock(distancesMutex);
-			if (x[i] == y) return; // do not use the same point
-			distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
-			distances[1][count] = x[i][0]; // Store outcome label
-			distances[2][count] = i; // Store index
-			count++;
+		auto task_lambda = [&, y, x, feature_size, distances](int i) {
+			if (x[i] == y) return;  // do not use the same point
+			int local_count = count.fetch_add(1, std::memory_order_relaxed);
+			distances[0][local_count] = this->euclidean_distance(y, x[i], feature_size);
+			distances[1][local_count] = x[i][0]; // Store outcome label
+			distances[2][local_count] = i; // Store index
 		};
 
 		// Create the for_each_index tasks and add them to the taskflow
@@ -360,9 +359,36 @@ private:
 		// Run the taskflow
 		executor.run(taskflow).wait();
 
-		// Print the count
-		std::cout << "Number of euclidean run:" << count << std::endl;
+		// Print the count (total number of euclidean runs)
+		std::cout << "Number of euclidean run: " << count.load(std::memory_order_relaxed) << std::endl;
 	}
+
+	//More faster
+	//void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
+	//	tf::Executor executor;
+	//	tf::Taskflow taskflow;
+	//	int count = 0;
+	//	std::mutex distancesMutex;
+
+	//	// Create a lambda function to be used for the for_each_index task
+	//	auto task_lambda = [&, y, x, feature_size](int i) {
+	//		std::lock_guard<std::mutex> lock(distancesMutex);
+	//		if (x[i] == y) return; // do not use the same point
+	//		distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
+	//		distances[1][count] = x[i][0]; // Store outcome label
+	//		distances[2][count] = i; // Store index
+	//		count++;
+	//	};
+
+	//	// Create the for_each_index tasks and add them to the taskflow
+	//	taskflow.for_each_index(0, dataset_size, 1, task_lambda);
+
+	//	// Run the taskflow
+	//	executor.run(taskflow).wait();
+
+	//	// Print the count
+	//	std::cout << "Number of euclidean run:" << count << std::endl;
+	//}
 
 	//void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
 	//	tf::Executor executor;
