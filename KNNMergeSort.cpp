@@ -191,6 +191,7 @@ public:
 		// Adjust the granularity as needed
 		int task_size = dataset_size / num_threads;
 
+		//Using numthread to loop will be more slower 
 		/*for (int i = 0; i < num_threads; i++) {
 			int start = i * task_size;
 			int end = (i == num_threads - 1) ? (dataset_size - 1) : ((i + 1) * task_size);*/
