@@ -37,8 +37,8 @@ public:
 		tf::Executor executor;
 
 		for (int t = 0; t < num_tasks; ++t) {
-			int chunk_size = dataset_size / num_tasks;
-			int start_idx = t * chunk_size;
+			int chunk_size = dataset_size / num_tasks;  //53681 / 4 = 13420 
+			int start_idx = t * chunk_size;  // 0, 13420, 26840, 30260
 			int end_idx = (t == num_tasks - 1) ? dataset_size : (start_idx + chunk_size);
 
 			taskflow.emplace([&, start_idx, end_idx, t] {
@@ -56,84 +56,85 @@ public:
 
 				});
 		}
+	
 		executor.run(taskflow).wait();
 
 		//To clear the task inside the taskflow
 		taskflow.clear();
 
-		//#pragma region serialSort
-		//		merge_sort(distances, 0, dataset_size - 1);
-		//		for (int i = 0; i < neighbours_number; i++) {
-		//			if (distances[1][i] == 0) {
-		//				zeros_count += 1;
-		//				std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;
-		//			}
-		//			else if (distances[1][i] == 1) {
-		//				ones_count += 1;
-		//				std::cout << "1: " << distances[0][i] << "," << distances[2][i] << std::endl;
-		//			}
-		//		}
-		//#pragma endregion 
-
-#pragma region parallelSort
-		int chunk_size = dataset_size / num_tasks;
-
-		for (int i = 0; i < num_tasks; i++) {
-			int start = i * (chunk_size);
-			int end = (i == num_tasks - 1) ? (dataset_size) : ((i + 1) * chunk_size);
-
-			taskflow.emplace([&, start, end] {
-				merge_sort(distances, start, end - 1);
-				});
-
-		}
-		executor.run(taskflow).wait();
-
-		double* sortedDistances[3];
-		sortedDistances[0] = new double[num_record_to_sort];
-		sortedDistances[1] = new double[num_record_to_sort];
-		sortedDistances[2] = new double[num_record_to_sort];
-
-
-		//extract first 5 from each thread (shortest distance)
-		for (int i = 0; i < 3; i++) {
-			//std::cout << "A" << std::endl;
-			for (int k = 0; k < num_tasks; k++) {
-				//std::cout << "B" << std::endl;
-				for (int j = 0; j < sort_record_each_thread; j++) {
-					// std::cout << "C" << std::endl;
-					sortedDistances[i][(k * sort_record_each_thread) + j] = distances[i][(k * chunk_size) + j];
+#pragma region serialSort
+				merge_sort(distances, 0, dataset_size - 1);
+				for (int i = 0; i < neighbours_number; i++) {
+					if (distances[1][i] == 0) {
+						zeros_count += 1;
+						std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;
+					}
+					else if (distances[1][i] == 1) {
+						ones_count += 1;
+						std::cout << "1: " << distances[0][i] << "," << distances[2][i] << std::endl;
+					}
 				}
-			}
-		}
+#pragma endregion 
 
-		//sort again
-		merge_sort(sortedDistances, 0, num_record_to_sort - 1);
-
-
-
-		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			if (sortedDistances[1][i] == 0) {
-				zeros_count += 1;
-				std::cout << "0: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << std::endl;
-			}
-			else if (sortedDistances[1][i] == 1) {
-				ones_count += 1;
-				std::cout << "1: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << std::endl;
-			}
-		}
-
-#pragma endregion
+//#pragma region parallelSort
+//		int chunk_size = dataset_size / num_tasks;
+//
+//		for (int i = 0; i < num_tasks; i++) {
+//			int start = i * (chunk_size);
+//			int end = (i == num_tasks - 1) ? (dataset_size) : ((i + 1) * chunk_size);
+//
+//			taskflow.emplace([&, start, end] {
+//				merge_sort(distances, start, end - 1);
+//				});
+//
+//		}
+//		executor.run(taskflow).wait();
+//
+//		double* sortedDistances[3];
+//		sortedDistances[0] = new double[num_record_to_sort];
+//		sortedDistances[1] = new double[num_record_to_sort];
+//		sortedDistances[2] = new double[num_record_to_sort];
+//
+//
+//		//extract first 5 from each thread (shortest distance)
+//		for (int i = 0; i < 3; i++) {
+//			//std::cout << "A" << std::endl;
+//			for (int k = 0; k < num_tasks; k++) {
+//				//std::cout << "B" << std::endl;
+//				for (int j = 0; j < sort_record_each_thread; j++) {
+//					// std::cout << "C" << std::endl;
+//					sortedDistances[i][(k * sort_record_each_thread) + j] = distances[i][(k * chunk_size) + j];
+//				}
+//			}
+//		}
+//
+//		//sort again
+//		merge_sort(sortedDistances, 0, num_record_to_sort - 1);
+//
+//
+//
+//		// Count label occurrences in the K nearest neighbors
+//		for (int i = 0; i < neighbours_number; i++) {
+//			if (sortedDistances[1][i] == 0) {
+//				zeros_count += 1;
+//				std::cout << "0: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << std::endl;
+//			}
+//			else if (sortedDistances[1][i] == 1) {
+//				ones_count += 1;
+//				std::cout << "1: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << std::endl;
+//			}
+//		}
+//
+//#pragma endregion
 
 		int prediction = (zeros_count > ones_count) ? 0 : 1;
 
 		delete[] distances[0];
 		delete[] distances[1];
 		delete[] distances[2];
-		delete[] sortedDistances[0];
+		/*delete[] sortedDistances[0];
 		delete[] sortedDistances[1];
-		delete[] sortedDistances[2];
+		delete[] sortedDistances[2];*/
 
 		return prediction;
 
@@ -224,21 +225,6 @@ private:
 		return std::sqrt(l2);
 	}
 
-	//void compute_distances(double** dataset, double* target, double** distances, int dataset_size, int feature_size, int start_idx, int end_idx, int t) {
-	//	int count = 0;
-
-	//	for (int i = start_idx; i < end_idx; i++) {
-	//		if (dataset[i] == target) continue; // do not use the same point
-	//		distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
-	//		distances[1][i] = dataset[i][0]; // Store outcome label
-	//		distances[2][i] = i; // Store index
-	//		count++;
-	//	}
-
-	//	// Lock the mutex before printing
-	//	//std::lock_guard<std::mutex> lock(outputMutex);
-	//	std::cout << "Thread " << t << " - Number of euclidean run: " << count << std::endl;
-	//}
 };
 
 class Knn {
