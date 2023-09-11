@@ -21,6 +21,7 @@ const int num_tasks = 4;
 const int sort_record_each_thread = 5;
 const int num_record_to_sort = num_tasks * sort_record_each_thread;
 
+mutex sorting_mutex;
 
 class TaskflowParallelKnn {
 private: 
@@ -39,79 +40,75 @@ public:
 		distances[1] = new double[dataset_size];
 		distances[2] = new double[dataset_size];
 
+		double* index_order = new double[dataset_size];
+
 		//get_knn(dataset, target, distances, dataset_size, feature_size);
 
-#pragma SuccessEdNEstedEmplace
 		Taskflow taskflow;
 		Executor executor;
 
-		auto [get_knn_task, merge_sort_task] = taskflow.emplace(
-			[&](Subflow subflow)
-			{
-
-				subflow.for_each_index(0, dataset_size, 1, [&](int i) {
 
 
-					/*double l2 = 0.0;
-					for (int j = 1; j < feature_size; j++) {
-						l2 += pow((target[j] - dataset[i][j]), 2);
-					}
-					distances[0][i] = sqrt(l2);*/
-					distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
-					distances[1][i] = dataset[i][0]; // Store outcome label
-					distances[2][i] = i; // Store index
-					});
-				//executor.run(taskflow).wait();
+		taskflow.for_each_index(0, dataset_size, 1, [&](int i) {
 
-				//taskflow.clear();
-			},
-			[&](Subflow subflow)
-			{
 
-				auto merge_sort_task = [=, &distances]() {
-					merge_sort(distances, 0, dataset_size - 1);
-				};
-				subflow.emplace(merge_sort_task);
-				//executor.run(taskflow).wait();
+			/*double l2 = 0.0;
+			for (int j = 1; j < feature_size; j++) {
+				l2 += pow((target[j] - dataset[i][j]), 2);
 			}
-		);
+			distances[0][i] = sqrt(l2);*/
+			distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
+			distances[1][i] = dataset[i][0]; // Store outcome label
+			distances[2][i] = i; // Store index
+			});
+
+		executor.run(taskflow).wait();
 
 
-		get_knn_task.precede(merge_sort_task);
-		executor.run(taskflow).get();
-#pragma endregion
-		
+		steady_clock::time_point start = steady_clock::now();
+		selectionSort(distances, dataset_size);
+		//auto merge_sort_task = [=, &distances]() {
+		//merge_sort(distances, 0, dataset_size - 1);
+		//};
+		//taskflow.emplace(merge_sort_task);
+		//executor.run(taskflow).wait();
+
+		steady_clock::time_point end = steady_clock::now();
+		cout << "Time difference = " << duration_cast<std::chrono::microseconds>(end - start).count() << "[µs]" << endl;
 
 //#pragma region Sorting
 //		//Map the 2D array to 1D array 
-//		double* index_order = new double[dataset_size];
+//
 //		for (int i = 0; i < dataset_size; i++) {
 //			index_order[i] = distances[0][i];
 //		}
 //
 //		auto compare_function = [&index_order](int i, int j) {
-//			double diff = index_order[i] - index_order[j];
+//			//double diff = index_order[i] - index_order[j];
 //
-//			//return distances[0][j] > distances[0][i];
-//			return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
+//			if (index_order[i] > index_order[j]) {
+//				return 1;
+//			}
+//			else if (index_order[i] = index_order[j]) {
+//				return 0;
+//			}
+//			else
+//				return -1;
+//
+//			//return index_order[i] > index_order[j];
+//			//return distances[0][i] < distances[0][j];
+//			//return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
 //		};
 //
-//		
 //
-//		taskflow.emplace([&,index_order]() {
-//			taskflow.sort(index_order, index_order + dataset_size, compare_function);
-//			});
-//		
 //
-//		executor.run(taskflow).wait();
-//	
-//
-//		for (int i = 0; i < 10; i++) {
-//			//cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
-//			cout << index_order[i] << endl;
-//		}
-//
+//		//subflow.emplace([&, index_order]() {
+//		taskflow.sort(index_order, index_order + dataset_size, compare_function);
+//		executor.run(taskflow);
+//		//});
 //#pragma endregion
+
+
 
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
@@ -136,6 +133,39 @@ public:
 	}
 
 private:
+	static void selectionSort(double** distances, int dataset_size) {
+		Taskflow taskflow;
+		Executor executor;
+		
+
+		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
+
+			sorting_mutex.lock();
+				int min_index = i;
+				for (int j = i + 1; j < dataset_size; j++) {
+					if (distances[0][j] < distances[0][min_index]) {
+						min_index = j;
+						
+					}
+				}
+
+				if (min_index != i) {
+					// Swap distances for all dimensions 
+
+					for (int x = 0; x < 3; x++) {
+						double temp = distances[x][i];
+						distances[x][i] = distances[x][min_index];
+						distances[x][min_index] = temp;
+					}
+
+
+				}
+				sorting_mutex.unlock();
+			});
+
+		executor.run(taskflow).wait();
+
+	}
 
 	static void merge(double** distances, int low, int middle, int high) {
 		int n1 = middle - low + 1;
@@ -206,8 +236,22 @@ private:
 	}
 
 	static void merge_sort(double** distances, int low, int high) {
+		/*Taskflow tasklow;
+		Executor executor;*/
+
 		if (low < high) {
 			int middle = low + (high - low) / 2;
+			
+			/*tasklow.emplace([&](Subflow sf) {
+				sf.emplace([&]() {
+					merge_sort(distances, low, middle);
+					});
+				sf.emplace([&]() {
+					merge_sort(distances, middle + 1, high);
+					});
+				});
+			executor.run(tasklow).wait();*/
+			
 			merge_sort(distances, low, middle);
 			merge_sort(distances, middle + 1, high);
 			merge(distances, low, middle, high);
@@ -284,7 +328,11 @@ public:
 
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
-		merge_sort(distances, 0, dataset_size - 1);
+		steady_clock::time_point start = steady_clock::now();
+		//merge_sort(distances, 0, dataset_size - 1);
+		selectionSort(distances, dataset_size);
+		steady_clock::time_point end = steady_clock::now();
+		cout << "Time difference = " << duration_cast<std::chrono::microseconds>(end - start).count() << "[µs]" << endl;
 
 		/*for (int i = 0; i < 10; i++) {
 			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
@@ -313,6 +361,26 @@ public:
 	}
 
 private:
+
+	static void selectionSort(double** distances, int dataset_size) {
+		for (int i = 0; i < dataset_size - 1; i++) {
+			int min_index = i;
+			for (int j = i + 1; j < dataset_size; j++) {
+				if (distances[0][j] < distances[0][min_index]) {
+					min_index = j;
+				}
+			}
+
+			if (min_index != i) {
+				// Swap distances for all dimensions 
+				for (int x = 0; x < 3; x++) {
+					double temp = distances[x][i];
+					distances[x][i] = distances[x][min_index];
+					distances[x][min_index] = temp;
+				}
+			}
+		}
+	}
 
 	static void merge(double** distances, int low, int middle, int high) {
 		int n1 = middle - low + 1;
@@ -385,6 +453,7 @@ private:
 	static void merge_sort(double** distances, int low, int high) {
 		if (low < high) {
 			int middle = low + (high - low) / 2;
+
 			merge_sort(distances, low, middle);
 			merge_sort(distances, middle + 1, high);
 			merge(distances, low, middle, high);
