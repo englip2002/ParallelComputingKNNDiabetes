@@ -43,6 +43,8 @@ public:
 		auto [get_knn_task, merge_sort_task, subsequence_task] = taskflow.emplace(
 			[&](Subflow subflow)
 			{
+
+				 
 				subflow.for_each_index(
 					0, num_tasks, 1,
 					[&](int t)
@@ -53,7 +55,12 @@ public:
 
 						for (int i = start; i < end; i++) {
 							if (dataset[i] == target) continue; // do not use the same point
-							distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
+							double l2 = 0.0;
+							for (int j = 1; j < feature_size; j++) {
+								l2 += pow((target[j] - dataset[i][j]), 2);
+							}
+							distances[0][i] = sqrt(l2);
+							//distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
 							distances[1][i] = dataset[i][0]; // Store outcome label
 							distances[2][i] = i; // Store index
 							count++;
@@ -70,6 +77,8 @@ public:
 					{
 						int start = t * chunk_size;
 						int end = (t == num_tasks - 1) ? dataset_size : (t + 1) * chunk_size;
+
+						//Sorting
 						merge_sort(distances, start, end - 1);
 
 						/*for (int i = start; i < start + 5; i++) {
@@ -218,29 +227,13 @@ private:
 		}
 	}
 
-	double euclidean_distance(const double* x, const double* y, int feature_size) {
+	/*double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
 		for (int i = 1; i < feature_size; i++) {
 			l2 += pow((x[i] - y[i]), 2);
 		}
 		return sqrt(l2);
-	}
-
-	//void compute_distances(double** dataset, double* target, double** distances, int dataset_size, int feature_size, int start_idx, int end_idx, int t) {
-	//	int count = 0;
-
-	//	for (int i = start_idx; i < end_idx; i++) {
-	//		if (dataset[i] == target) continue; // do not use the same point
-	//		distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
-	//		distances[1][i] = dataset[i][0]; // Store outcome label
-	//		distances[2][i] = i; // Store index
-	//		count++;
-	//	}
-
-	//	// Lock the mutex before printing
-	//	//lock_guard<mutex> lock(outputMutex);
-	//	cout << "Thread " << t << " - Number of euclidean run: " << count << endl;
-	//}
+	}*/
 };
 
 class Knn {
