@@ -64,17 +64,12 @@ public:
 
 		executor.run(taskflow).wait();
 
-
+		int chunk_size = dataset_size / num_tasks;
 		steady_clock::time_point start = steady_clock::now();
 		selectionSort(distances, dataset_size);
-		//auto merge_sort_task = [=, &distances]() {
-		//merge_sort(distances, 0, dataset_size - 1);
-		//};
-		//taskflow.emplace(merge_sort_task);
-		//executor.run(taskflow).wait();
+		
 
-		steady_clock::time_point end = steady_clock::now();
-		cout << "Time difference = " << duration_cast<std::chrono::microseconds>(end - start).count() << "[µs]" << endl;
+		
 
 //#pragma region Sorting
 //		//Map the 2D array to 1D array 
@@ -108,17 +103,43 @@ public:
 //		//});
 //#pragma endregion
 
+		double* sortedDistances[3];
+		sortedDistances[0] = new double[num_record_to_sort];
+		sortedDistances[1] = new double[num_record_to_sort];
+		sortedDistances[2] = new double[num_record_to_sort];
 
+		//extract first 5 from each thread (shortest distance)
+		for (int i = 0; i < 3; i++) {
+			//cout << "A" << endl;
+			for (int k = 0; k < num_tasks; k++) {
+				//cout << "B" << endl;
+				for (int j = 0; j < sort_record_each_thread; j++) {
+					// cout << "C" << endl;
+					sortedDistances[i][(k * sort_record_each_thread) + j] = distances[i][k * chunk_size + j];
+				}
+			}
+		}
+
+		//sort again
+		selectionSort(sortedDistances, num_record_to_sort);
+
+		steady_clock::time_point end = steady_clock::now();
+		cout << "Time difference = " << duration_cast<std::chrono::microseconds>(end - start).count() << "[µs]" << endl;
+
+		//for (int i = 0; i < num_record_to_sort; i++) {
+		//	cout << sortedDistances[0][i] << "," << sortedDistances[1][i] << "," << sortedDistances[2][i] << endl;
+		//}
 
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][i] == 0) {
+			//cout << neighbours_number << " ";
+			if (sortedDistances[1][i] == 0) {
 				zeros_count += 1;
-				cout << "0: " << distances[0][i] << "," << distances[2][i] << endl;
+				cout << "0: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << endl;
 			}
-			else if (distances[1][i] == 1) {
+			else if (sortedDistances[1][i] == 1) {
 				ones_count += 1;
-				cout << "1: " << distances[0][i] << "," << distances[2][i] << endl;
+				cout << "1: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << endl;
 			}
 		}
 
@@ -140,7 +161,7 @@ private:
 
 		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
 
-			sorting_mutex.lock();
+			//sorting_mutex.lock();
 				int min_index = i;
 				for (int j = i + 1; j < dataset_size; j++) {
 					if (distances[0][j] < distances[0][min_index]) {
@@ -160,7 +181,7 @@ private:
 
 
 				}
-				sorting_mutex.unlock();
+				//sorting_mutex.unlock();
 			});
 
 		executor.run(taskflow).wait();
