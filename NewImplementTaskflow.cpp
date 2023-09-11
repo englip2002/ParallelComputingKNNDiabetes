@@ -134,9 +134,9 @@ public:
 
 		executor.run(taskflow).get();
 
-		//delete[] distances[0];
-		//delete[] distances[1];
-		//delete[] distances[2];
+		delete[] distances[0];
+		delete[] distances[1];
+		delete[] distances[2];
 
 		return prediction;
 	}
