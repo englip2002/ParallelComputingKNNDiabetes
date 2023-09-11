@@ -48,6 +48,9 @@
     <ClCompile Include="openMpKNN.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Final.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="diabetes_binary.csv">
