@@ -18,6 +18,9 @@ using namespace chrono;
 using namespace tf;
 
 const int num_tasks = 4;
+const int sort_record_each_thread = 5;
+const int num_record_to_sort = num_tasks * sort_record_each_thread;
+
 
 class TaskflowParallelKnn {
 private: 
@@ -38,88 +41,64 @@ public:
 
 		//get_knn(dataset, target, distances, dataset_size, feature_size);
 
+#pragma SuccessEdNEstedEmplace
 		Taskflow taskflow;
 		Executor executor;
 
+		auto [get_knn_task, merge_sort_task] = taskflow.emplace(
+			[&](Subflow subflow)
+			{
 
-		taskflow.for_each_index(0, dataset_size, 1, [&](int i) {
+				subflow.for_each_index(0, dataset_size, 1, [&](int i) {
 
-			int count = 0;
-			/*double l2 = 0.0;
-			for (int j = 1; j < feature_size; j++) {
-				l2 += pow((target[j] - dataset[i][j]), 2);
+
+					/*double l2 = 0.0;
+					for (int j = 1; j < feature_size; j++) {
+						l2 += pow((target[j] - dataset[i][j]), 2);
+					}
+					distances[0][i] = sqrt(l2);*/
+					distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
+					distances[1][i] = dataset[i][0]; // Store outcome label
+					distances[2][i] = i; // Store index
+					});
+				//executor.run(taskflow).wait();
+
+				//taskflow.clear();
+			},
+			[&](Subflow subflow)
+			{
+
+				auto merge_sort_task = [=, &distances]() {
+					merge_sort(distances, 0, dataset_size - 1);
+				};
+				subflow.emplace(merge_sort_task);
+				//executor.run(taskflow).wait();
 			}
-			distances[0][i] = sqrt(l2);*/
-			distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
-			distances[1][i] = dataset[i][0]; // Store outcome label
-			distances[2][i] = i; // Store index
-			count++;
-			});
+		);
 
-		executor.run(taskflow).wait();
 
-		taskflow.clear();
-
-		//tf.for_each_index(0, num_tasks, 1, [&](int t) {
-		//	int count = 0;
-
-		//	int chunk_size = dataset_size / num_tasks;   
-		//	int start_idx = t * chunk_size;  
-		//	int end_idx = (t == num_tasks - 1) ? dataset_size : (start_idx + chunk_size);
-
-		//	for (int i = start_idx; i < end_idx; i++) {
-		//		if (dataset[i] == target) continue; // do not use the same point
-		//		double l2 = 0.0;
-		//		for (int j = 1; j < feature_size; j++) {
-		//			l2 += pow((target[j] - dataset[i][j]), 2);
-		//		}
-		//		distances[0][i] = sqrt(l2);
-		//		//distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
-		//		distances[1][i] = dataset[i][0]; // Store outcome label
-		//		distances[2][i] = i; // Store index
-		//		count++;
-		//	}
-
-		//	cout << "Task " << t << " - Number of euclidean run: " << count << endl;
-
-		//	});
-	
+		get_knn_task.precede(merge_sort_task);
+		executor.run(taskflow).get();
+#pragma endregion
 		
 
-		/*auto merge_sort_task = [=, &distances]() {
-			merge_sort(distances, 0, dataset_size - 1);
-		};*/
-		//tf.emplace(merge_sort_task);
-
-
-
-		/*int chunk_size = dataset_size / num_tasks;
-
-		for (int i = 0; i < num_tasks; i++) {
-			int start = i * (chunk_size);
-			int end = (i == num_tasks - 1) ? (dataset_size) : ((i + 1) * chunk_size);
-
-			tf.emplace([&] {
-				merge_sort(distances, start, end - 1);
-				});
-
-		}*/
-
 //#pragma region Sorting
-//		int* index_order = new int[dataset_size];
-//		for (int i = 0; i < dataset_size; ++i) {
-//			index_order[i] = i;
+//		//Map the 2D array to 1D array 
+//		double* index_order = new double[dataset_size];
+//		for (int i = 0; i < dataset_size; i++) {
+//			index_order[i] = distances[0][i];
 //		}
 //
-//		auto compare_function = [&distances](int i, int j) {
-//			double diff = distances[0][i] - distances[0][j];
+//		auto compare_function = [&index_order](int i, int j) {
+//			double diff = index_order[i] - index_order[j];
 //
-//			return distances[0][j] > distances[0][i];
-//
-//			//return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
+//			//return distances[0][j] > distances[0][i];
+//			return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
 //		};
 //
-//		taskflow.emplace([&, index_order]() {
+//		
+//
+//		taskflow.emplace([&,index_order]() {
 //			taskflow.sort(index_order, index_order + dataset_size, compare_function);
 //			});
 //		
@@ -128,7 +107,8 @@ public:
 //	
 //
 //		for (int i = 0; i < 10; i++) {
-//			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+//			//cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+//			cout << index_order[i] << endl;
 //		}
 //
 //#pragma endregion
