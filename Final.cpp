@@ -68,69 +68,16 @@ public:
 		steady_clock::time_point start = steady_clock::now();
 		selectionSort(distances, dataset_size);
 
-		for (int i = 0; i < 10; i++) {
-			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
-		}
-
-
-		//#pragma region Sorting
-		//		//Map the 2D array to 1D array 
-		//
-		//		for (int i = 0; i < dataset_size; i++) {
-		//			index_order[i] = distances[0][i];
-		//		}
-		//
-		//		auto compare_function = [&index_order](int i, int j) {
-		//			//double diff = index_order[i] - index_order[j];
-		//
-		//			if (index_order[i] > index_order[j]) {
-		//				return 1;
-		//			}
-		//			else if (index_order[i] = index_order[j]) {
-		//				return 0;
-		//			}
-		//			else
-		//				return -1;
-		//
-		//			//return index_order[i] > index_order[j];
-		//			//return distances[0][i] < distances[0][j];
-		//			//return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
-		//		};
-		//
-		//
-		//
-		//		//subflow.emplace([&, index_order]() {
-		//		taskflow.sort(index_order, index_order + dataset_size, compare_function);
-		//		executor.run(taskflow);
-		//		//});
-		//#pragma endregion
-
-		//double* sortedDistances[3];
-		//sortedDistances[0] = new double[num_record_to_sort];
-		//sortedDistances[1] = new double[num_record_to_sort];
-		//sortedDistances[2] = new double[num_record_to_sort];
-
-		////extract first 5 from each thread (shortest distance)
-		//for (int i = 0; i < 3; i++) {
-		//	//cout << "A" << endl;
-		//	for (int k = 0; k < num_tasks; k++) {
-		//		//cout << "B" << endl;
-		//		for (int j = 0; j < sort_record_each_thread; j++) {
-		//			// cout << "C" << endl;
-		//			sortedDistances[i][(k * sort_record_each_thread) + j] = distances[i][k * chunk_size + j];
-		//		}
-		//	}
+		//for (int i = 0; i < 10; i++) {
+		//	cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
 		//}
-
-		////sort again
-		//selectionSort(sortedDistances, num_record_to_sort);
 
 		steady_clock::time_point end = steady_clock::now();
 		cout << "Time difference = " << duration_cast<std::chrono::microseconds>(end - start).count() << "[µs]" << endl;
 
-		//for (int i = 0; i < num_record_to_sort; i++) {
-		//	cout << sortedDistances[0][i] << "," << sortedDistances[1][i] << "," << sortedDistances[2][i] << endl;
-		//}
+		for (int i = 0; i < 10; i++) {
+			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
+		}
 
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
@@ -165,15 +112,11 @@ private:
 		}*/
 		//taskflow.for_each_index(0, num_tasks, 1, [=, &distances](int i) {
 		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
-
-
-
 			//sorting_mutex.lock();
 			int min_index = i;
 			for (int j = i + 1; j < dataset_size; j++) {
 				if (distances[0][j] < distances[0][min_index]) {
 					min_index = j;
-
 				}
 			}
 
@@ -185,105 +128,30 @@ private:
 					distances[x][i] = distances[x][min_index];
 					distances[x][min_index] = temp;
 				}
-
-
 			}
 			//sorting_mutex.unlock();
 			});
 
 		executor.run(taskflow).wait();
 
-	}
+		//for (int i = 0; i < num_record_to_sort; i++) {
+		//	int min_index = i;
+		//	for (int j = i + 1; j < dataset_size; j++) {
+		//		if (distances[0][j] < distances[0][min_index]) {
+		//			min_index = j;
 
-	static void merge(double** distances, int low, int middle, int high) {
-		int n1 = middle - low + 1;
-		int n2 = high - middle;
+		//		}
+		//	}
 
-		double* left[3];
-		double* right[3];
-
-		// Create temporary arrays
-		for (int i = 0; i < 3; i++) {
-			left[i] = new double[n1];
-			right[i] = new double[n2];
-		}
-
-		// Copy data to temporary arrays left[] and right[]
-		for (int i = 0; i < n1; i++) {
-			for (int j = 0; j < 3; j++) {
-				left[j][i] = distances[j][low + i];
-			}
-		}
-		for (int i = 0; i < n2; i++) {
-			for (int j = 0; j < 3; j++) {
-				right[j][i] = distances[j][middle + 1 + i];
-			}
-		}
-
-		// Merge the temporary arrays back into distances[3]
-		int i = 0, j = 0, k = low;
-		while (i < n1 && j < n2) {
-			if (left[0][i] <= right[0][j]) {
-				for (int x = 0; x < 3; x++) {
-					distances[x][k] = left[x][i];
-				}
-				i++;
-			}
-			else {
-				for (int x = 0; x < 3; x++) {
-					distances[x][k] = right[x][j];
-				}
-				j++;
-			}
-			k++;
-		}
-
-		// Copy the remaining elements of left[], if any
-		while (i < n1) {
-			for (int x = 0; x < 3; x++) {
-				distances[x][k] = left[x][i];
-			}
-			i++;
-			k++;
-		}
-
-		// Copy the remaining elements of right[], if any
-		while (j < n2) {
-			for (int x = 0; x < 3; x++) {
-				distances[x][k] = right[x][j];
-			}
-			j++;
-			k++;
-		}
-
-		// Clean up temporary arrays
-		for (int x = 0; x < 3; x++) {
-			delete[] left[x];
-			delete[] right[x];
-		}
-	}
-
-	static void merge_sort(double** distances, int low, int high) {
-		/*Taskflow tasklow;
-		Executor executor;*/
-
-		if (low < high) {
-			int middle = low + (high - low) / 2;
-
-			/*tasklow.emplace([&](Subflow sf) {
-				sf.emplace([&]() {
-					merge_sort(distances, low, middle);
-					});
-				sf.emplace([&]() {
-					merge_sort(distances, middle + 1, high);
-					});
-				});
-			executor.run(tasklow).wait();*/
-
-			merge_sort(distances, low, middle);
-			merge_sort(distances, middle + 1, high);
-			merge(distances, low, middle, high);
-		}
+		//	if (min_index != i) {
+		//		// Swap distances for all dimensions 
+		//		for (int x = 0; x < 3; x++) {
+		//			double temp = distances[x][i];
+		//			distances[x][i] = distances[x][min_index];
+		//			distances[x][min_index] = temp;
+		//		}
+		//	}
+		//}
 	}
 
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
@@ -293,46 +161,6 @@ private:
 		}
 		return sqrt(l2);
 	}
-
-
-
-	//void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
-
-	//	Taskflow tf;
-	//	Executor executor;
-
-	//	int count = 0;
-	//	/*int start = 0;
-	//	int end = dataset_size - 1;*/
-
-	//	/*auto init = tf.emplace([&]() {
-	//		int count = 0;
-	//		int start = 0;
-	//		int end = dataset_size;
-	//		});*/
-
-
-
-	//	tf.for_each_index(0, dataset_size, 1, [&](int i) {
-	//		for (int i = 0; i < dataset_size - 1; i++) {
-	//			if (x[i] == y) continue; // do not use the same point
-	//			double l2 = 0.0;
-	//			for (int j = 1; j < feature_size; j++) {
-	//				l2 += pow((y[j] - x[i][j]), 2);
-	//			}
-	//			distances[0][i] = sqrt(l2);
-	//			//distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
-	//			distances[1][i] = x[i][0]; // Store outcome label
-	//			distances[2][i] = i; // Store index
-	//			//cout << "A" << endl;
-	//			count++;
-	//		}
-	//		});
-	//	//init.precede(tf);
-	//	executor.run(tf);
-	//	cout << "Number of euclidean run:" << count << endl;
-	//	}
-
 
 };
 
@@ -537,9 +365,10 @@ int main() {
 	const int feature_size = 22;
 
 	double** dataset = new double* [dataset_size];
-	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
-	double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
-
+	double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
+	//double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 20.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 7.0, 4.0, 5.0 };
+	
 	// Allocate memory for dataset and target
 	for (int i = 0; i < dataset_size; i++) {
 		dataset[i] = new double[feature_size];
