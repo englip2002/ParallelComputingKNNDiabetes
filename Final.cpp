@@ -40,8 +40,6 @@ public:
 
 		double* index_order = new double[dataset_size];
 
-		//get_knn(dataset, target, distances, dataset_size, feature_size);
-
 		Taskflow taskflow;
 		Executor executor;
 
