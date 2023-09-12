@@ -107,10 +107,6 @@ private:
 		Taskflow taskflow;
 		Executor executor;
 
-		/*for (int i = 0; i < num_tasks; i++) {
-
-		}*/
-		//taskflow.for_each_index(0, num_tasks, 1, [=, &distances](int i) {
 		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
 			//sorting_mutex.lock();
 			int min_index = i;
@@ -134,24 +130,23 @@ private:
 
 		executor.run(taskflow).wait();
 
-		//for (int i = 0; i < num_record_to_sort; i++) {
-		//	int min_index = i;
-		//	for (int j = i + 1; j < dataset_size; j++) {
-		//		if (distances[0][j] < distances[0][min_index]) {
-		//			min_index = j;
+		for (int i = 0; i < num_record_to_sort; i++) {
+			int min_index = i;
+			for (int j = i + 1; j < dataset_size; j++) {
+				if (distances[0][j] < distances[0][min_index]) {
+					min_index = j;
+				}
+			}
 
-		//		}
-		//	}
-
-		//	if (min_index != i) {
-		//		// Swap distances for all dimensions 
-		//		for (int x = 0; x < 3; x++) {
-		//			double temp = distances[x][i];
-		//			distances[x][i] = distances[x][min_index];
-		//			distances[x][min_index] = temp;
-		//		}
-		//	}
-		//}
+			if (min_index != i) {
+				// Swap distances for all dimensions 
+				for (int x = 0; x < 3; x++) {
+					double temp = distances[x][i];
+					distances[x][i] = distances[x][min_index];
+					distances[x][min_index] = temp;
+				}
+			}
+		}
 	}
 
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
@@ -365,8 +360,10 @@ int main() {
 	const int feature_size = 22;
 
 	double** dataset = new double* [dataset_size];
-	double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
+	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
 	//double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+	//double target[feature_size] = { 0.0, 1.0, 1.0, 1.0, 28.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 4.0, 0.0, 10.0, 1.0, 0.0, 12.0, 6.0, 2.0 };
+	double target[feature_size] = { 1.0,1.0,1.0,1.0,23.0,1.0,1.0,1.0,0.0,1.0,0.0,0.0,1.0,1.0,1.0,2.0,0.0,0.0,0.0,7.0,5.0,3.0 };
 	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 20.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 7.0, 4.0, 5.0 };
 	
 	// Allocate memory for dataset and target
