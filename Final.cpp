@@ -19,9 +19,7 @@ using namespace tf;
 
 const int num_tasks = 4;
 const int sort_record_each_thread = 5;
-const int num_record_to_sort = num_tasks * sort_record_each_thread;
-
-mutex sorting_mutex;
+const int num_record_to_sort = 20;
 
 class TaskflowParallelKnn {
 private:
@@ -65,19 +63,11 @@ public:
 		executor.run(taskflow).wait();
 
 		int chunk_size = dataset_size / num_tasks;
-		steady_clock::time_point start = steady_clock::now();
-		selectionSort(distances, dataset_size);
+		selection_sort(distances, dataset_size);
 
 		//for (int i = 0; i < 10; i++) {
 		//	cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
 		//}
-
-		steady_clock::time_point end = steady_clock::now();
-		cout << "Time difference = " << duration_cast<std::chrono::microseconds>(end - start).count() << "[탎]" << endl;
-
-		for (int i = 0; i < 10; i++) {
-			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
-		}
 
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
@@ -103,7 +93,7 @@ public:
 	}
 
 private:
-	static void selectionSort(double** distances, int dataset_size) {
+	static void selection_sort(double** distances, int dataset_size) {
 		Taskflow taskflow;
 		Executor executor;
 
@@ -179,12 +169,8 @@ public:
 
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
-		steady_clock::time_point start = steady_clock::now();
-		//merge_sort(distances, 0, dataset_size - 1);
 		selectionSort(distances, dataset_size);
-		steady_clock::time_point end = steady_clock::now();
-		cout << "Time difference = " << duration_cast<std::chrono::microseconds>(end - start).count() << "[탎]" << endl;
-
+		
 		/*for (int i = 0; i < 10; i++) {
 			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
 		}*/
@@ -230,84 +216,6 @@ private:
 					distances[x][min_index] = temp;
 				}
 			}
-		}
-	}
-
-	static void merge(double** distances, int low, int middle, int high) {
-		int n1 = middle - low + 1;
-		int n2 = high - middle;
-
-		double* left[3];
-		double* right[3];
-
-		// Create temporary arrays
-		for (int i = 0; i < 3; i++) {
-			left[i] = new double[n1];
-			right[i] = new double[n2];
-		}
-
-		// Copy data to temporary arrays left[] and right[]
-		for (int i = 0; i < n1; i++) {
-			for (int j = 0; j < 3; j++) {
-				left[j][i] = distances[j][low + i];
-			}
-		}
-		for (int i = 0; i < n2; i++) {
-			for (int j = 0; j < 3; j++) {
-				right[j][i] = distances[j][middle + 1 + i];
-			}
-		}
-
-		// Merge the temporary arrays back into distances[3]
-		int i = 0, j = 0, k = low;
-		while (i < n1 && j < n2) {
-			if (left[0][i] <= right[0][j]) {
-				for (int x = 0; x < 3; x++) {
-					distances[x][k] = left[x][i];
-				}
-				i++;
-			}
-			else {
-				for (int x = 0; x < 3; x++) {
-					distances[x][k] = right[x][j];
-				}
-				j++;
-			}
-			k++;
-		}
-
-		// Copy the remaining elements of left[], if any
-		while (i < n1) {
-			for (int x = 0; x < 3; x++) {
-				distances[x][k] = left[x][i];
-			}
-			i++;
-			k++;
-		}
-
-		// Copy the remaining elements of right[], if any
-		while (j < n2) {
-			for (int x = 0; x < 3; x++) {
-				distances[x][k] = right[x][j];
-			}
-			j++;
-			k++;
-		}
-
-		// Clean up temporary arrays
-		for (int x = 0; x < 3; x++) {
-			delete[] left[x];
-			delete[] right[x];
-		}
-	}
-
-	static void merge_sort(double** distances, int low, int high) {
-		if (low < high) {
-			int middle = low + (high - low) / 2;
-
-			merge_sort(distances, low, middle);
-			merge_sort(distances, middle + 1, high);
-			merge(distances, low, middle, high);
 		}
 	}
 
@@ -358,13 +266,14 @@ int main() {
 	//const int dataset_size = 253681; 
 	const int dataset_size = 53681;
 	const int feature_size = 22;
+	int time_parallel_knn = 0;
+	int time_serial_knn = 0;
+	int time_reduce = 0; 
 
 	double** dataset = new double* [dataset_size];
 	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
-	//double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+	double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
 	//double target[feature_size] = { 0.0, 1.0, 1.0, 1.0, 28.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 4.0, 0.0, 10.0, 1.0, 0.0, 12.0, 6.0, 2.0 };
-	double target[feature_size] = { 1.0,1.0,1.0,1.0,23.0,1.0,1.0,1.0,0.0,1.0,0.0,0.0,1.0,1.0,1.0,2.0,0.0,0.0,0.0,7.0,5.0,3.0 };
-	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 20.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 7.0, 4.0, 5.0 };
 	
 	// Allocate memory for dataset and target
 	for (int i = 0; i < dataset_size; i++) {
@@ -412,7 +321,8 @@ int main() {
 	}
 
 	steady_clock::time_point e = steady_clock::now();
-	cout << "Time difference = " << duration_cast<std::chrono::microseconds>(e - start).count() << "[탎]" << endl;
+	time_parallel_knn = duration_cast<std::chrono::microseconds>(e - start).count();
+	cout << "Time difference = " << time_parallel_knn << "[탎]" << endl;
 #pragma endregion
 
 
@@ -436,8 +346,13 @@ int main() {
 	}
 
 	steady_clock::time_point knnEnd = steady_clock::now();
-	cout << "Time difference = " << duration_cast<microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
+	time_serial_knn = duration_cast<microseconds>(knnEnd - knnBegin).count();
+	cout << "Time difference = " << time_serial_knn << "[탎]" << endl;
 #pragma endregion
+
+	time_reduce = time_serial_knn - time_parallel_knn;
+
+	cout << "\n\nTime Reduce by Parallel KNN: " << time_reduce << "[탎]" << endl;
 
 	return 0;
 }
