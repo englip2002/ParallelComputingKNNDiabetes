@@ -58,7 +58,13 @@ public:
 			distances[2][i] = i; // Store index
 			});
 
+
 		executor.run(taskflow).wait();
+
+
+		/*for (int i = 0; i < 100; i++) {
+			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
+		}*/
 
 		int chunk_size = dataset_size / num_tasks;
 		selection_sort(distances, dataset_size);
@@ -266,7 +272,7 @@ int main() {
 	const int feature_size = 22;
 	int time_parallel_knn = 0;
 	int time_serial_knn = 0;
-	int time_reduce = 0; 
+	double time_reduce = 0.0; 
 
 	double** dataset = new double* [dataset_size];
 	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
@@ -348,9 +354,9 @@ int main() {
 	cout << "Time difference = " << time_serial_knn << "[µs]" << endl;
 #pragma endregion
 
-	time_reduce = time_serial_knn - time_parallel_knn;
+	time_reduce = time_serial_knn / time_parallel_knn;
 
-	cout << "\n\nTime Reduce by Parallel KNN: " << time_reduce << "[µs]" << endl;
+	cout << "\n\nThe speed of classification is " << time_reduce <<  " time(s) faster" << endl;
 
 	return 0;
 }
