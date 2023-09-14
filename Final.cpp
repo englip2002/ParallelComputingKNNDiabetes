@@ -18,16 +18,12 @@ using namespace chrono;
 using namespace tf;
 
 const int num_tasks = 4;
-const int sort_record_each_thread = 5;
-const int num_record_to_sort = num_tasks * sort_record_each_thread;
-
-mutex sorting_mutex;
 
 class TaskflowParallelKnn {
-private:
-	int neighbours_number;
+private: 
+	int neighbours_number; 
 
-public:
+public: 
 	TaskflowParallelKnn(int k) : neighbours_number(k) {}
 
 	int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
@@ -40,18 +36,15 @@ public:
 		distances[1] = new double[dataset_size];
 		distances[2] = new double[dataset_size];
 
-		double* index_order = new double[dataset_size];
-
 		//get_knn(dataset, target, distances, dataset_size, feature_size);
 
 		Taskflow taskflow;
 		Executor executor;
 
 
-
 		taskflow.for_each_index(0, dataset_size, 1, [&](int i) {
 
-
+			int count = 0;
 			/*double l2 = 0.0;
 			for (int j = 1; j < feature_size; j++) {
 				l2 += pow((target[j] - dataset[i][j]), 2);
@@ -60,135 +53,86 @@ public:
 			distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
 			distances[1][i] = dataset[i][0]; // Store outcome label
 			distances[2][i] = i; // Store index
+			count++;
 			});
 
 		executor.run(taskflow).wait();
 
-		int chunk_size = dataset_size / num_tasks;
-		steady_clock::time_point start = steady_clock::now();
-		selectionSort(distances, dataset_size);
+		taskflow.clear();
 
-		//for (int i = 0; i < 10; i++) {
-		//	cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
-		//}
+		//tf.for_each_index(0, num_tasks, 1, [&](int t) {
+		//	int count = 0;
 
-		steady_clock::time_point end = steady_clock::now();
-		cout << "Time difference = " << duration_cast<std::chrono::microseconds>(end - start).count() << "[µs]" << endl;
+		//	int chunk_size = dataset_size / num_tasks;   
+		//	int start_idx = t * chunk_size;  
+		//	int end_idx = (t == num_tasks - 1) ? dataset_size : (start_idx + chunk_size);
 
-		for (int i = 0; i < 10; i++) {
-			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
-		}
+		//	for (int i = start_idx; i < end_idx; i++) {
+		//		if (dataset[i] == target) continue; // do not use the same point
+		//		double l2 = 0.0;
+		//		for (int j = 1; j < feature_size; j++) {
+		//			l2 += pow((target[j] - dataset[i][j]), 2);
+		//		}
+		//		distances[0][i] = sqrt(l2);
+		//		//distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
+		//		distances[1][i] = dataset[i][0]; // Store outcome label
+		//		distances[2][i] = i; // Store index
+		//		count++;
+		//	}
 
-		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			//cout << neighbours_number << " ";
-			if (distances[1][i] == 0) {
-				zeros_count += 1;
-				cout << "0: " << distances[0][i] << "," << distances[2][i] << endl;
-			}
-			else if (distances[1][i] == 1) {
-				ones_count += 1;
-				cout << "1: " << distances[0][i] << "," << distances[2][i] << endl;
-			}
-		}
+		//	cout << "Task " << t << " - Number of euclidean run: " << count << endl;
 
-		int prediction = (zeros_count > ones_count) ? 0 : 1;
+		//	});
+	
+		
 
-		// Clean up memory
-		delete[] distances[0];
-		delete[] distances[1];
-		delete[] distances[2];
-
-		return prediction;
-	}
-
-private:
-	static void selectionSort(double** distances, int dataset_size) {
-		Taskflow taskflow;
-		Executor executor;
-
-		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
-			//sorting_mutex.lock();
-			int min_index = i;
-			for (int j = i + 1; j < dataset_size; j++) {
-				if (distances[0][j] < distances[0][min_index]) {
-					min_index = j;
-				}
-			}
-
-			if (min_index != i) {
-				// Swap distances for all dimensions 
-
-				for (int x = 0; x < 3; x++) {
-					double temp = distances[x][i];
-					distances[x][i] = distances[x][min_index];
-					distances[x][min_index] = temp;
-				}
-			}
-			//sorting_mutex.unlock();
-			});
-
-		executor.run(taskflow).wait();
-
-		for (int i = 0; i < num_record_to_sort; i++) {
-			int min_index = i;
-			for (int j = i + 1; j < dataset_size; j++) {
-				if (distances[0][j] < distances[0][min_index]) {
-					min_index = j;
-				}
-			}
-
-			if (min_index != i) {
-				// Swap distances for all dimensions 
-				for (int x = 0; x < 3; x++) {
-					double temp = distances[x][i];
-					distances[x][i] = distances[x][min_index];
-					distances[x][min_index] = temp;
-				}
-			}
-		}
-	}
-
-	double euclidean_distance(const double* x, const double* y, int feature_size) {
-		double l2 = 0.0;
-		for (int i = 1; i < feature_size; i++) {
-			l2 += pow((x[i] - y[i]), 2);
-		}
-		return sqrt(l2);
-	}
-
-};
+		/*auto merge_sort_task = [=, &distances]() {
+			merge_sort(distances, 0, dataset_size - 1);
+		};*/
+		//tf.emplace(merge_sort_task);
 
 
-class SerialMergeSortKnn {
-private:
-	int neighbours_number;
 
-public:
-	SerialMergeSortKnn(int k) : neighbours_number(k) {}
+		/*int chunk_size = dataset_size / num_tasks;
 
-	int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
-		double* distances[3];
-		int zeros_count = 0;
-		int ones_count = 0;
+		for (int i = 0; i < num_tasks; i++) {
+			int start = i * (chunk_size);
+			int end = (i == num_tasks - 1) ? (dataset_size) : ((i + 1) * chunk_size);
 
-		// Allocate memory for distances and index order
-		distances[0] = new double[dataset_size];
-		distances[1] = new double[dataset_size];
-		distances[2] = new double[dataset_size];
+			tf.emplace([&] {
+				merge_sort(distances, start, end - 1);
+				});
 
-		get_knn(dataset, target, distances, dataset_size, feature_size);
-
-		steady_clock::time_point start = steady_clock::now();
-		//merge_sort(distances, 0, dataset_size - 1);
-		selectionSort(distances, dataset_size);
-		steady_clock::time_point end = steady_clock::now();
-		cout << "Time difference = " << duration_cast<std::chrono::microseconds>(end - start).count() << "[µs]" << endl;
-
-		/*for (int i = 0; i < 10; i++) {
-			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
 		}*/
 
+//#pragma region Sorting
+//		int* index_order = new int[dataset_size];
+//		for (int i = 0; i < dataset_size; ++i) {
+//			index_order[i] = i;
+//		}
+//
+//		auto compare_function = [&distances](int i, int j) {
+//			double diff = distances[0][i] - distances[0][j];
+//
+//			return distances[0][j] > distances[0][i];
+//
+//			//return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
+//		};
+//
+//		taskflow.emplace([&, index_order]() {
+//			taskflow.sort(index_order, index_order + dataset_size, compare_function);
+//			});
+//		
+//
+//		executor.run(taskflow).wait();
+//	
+//
+//		for (int i = 0; i < 10; i++) {
+//			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+//		}
+//
+//#pragma endregion
+
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
 			if (distances[1][i] == 0) {
@@ -212,26 +156,6 @@ public:
 	}
 
 private:
-
-	static void selectionSort(double** distances, int dataset_size) {
-		for (int i = 0; i < dataset_size - 1; i++) {
-			int min_index = i;
-			for (int j = i + 1; j < dataset_size; j++) {
-				if (distances[0][j] < distances[0][min_index]) {
-					min_index = j;
-				}
-			}
-
-			if (min_index != i) {
-				// Swap distances for all dimensions 
-				for (int x = 0; x < 3; x++) {
-					double temp = distances[x][i];
-					distances[x][i] = distances[x][min_index];
-					distances[x][min_index] = temp;
-				}
-			}
-		}
-	}
 
 	static void merge(double** distances, int low, int middle, int high) {
 		int n1 = middle - low + 1;
@@ -304,7 +228,183 @@ private:
 	static void merge_sort(double** distances, int low, int high) {
 		if (low < high) {
 			int middle = low + (high - low) / 2;
+			merge_sort(distances, low, middle);
+			merge_sort(distances, middle + 1, high);
+			merge(distances, low, middle, high);
+		}
+	}
 
+	double euclidean_distance(const double* x, const double* y, int feature_size) {
+		double l2 = 0.0;
+		for (int i = 1; i < feature_size; i++) {
+			l2 += pow((x[i] - y[i]), 2);
+		}
+		return sqrt(l2);
+	}
+
+
+
+	//void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
+
+	//	Taskflow tf;
+	//	Executor executor;
+
+	//	int count = 0;
+	//	/*int start = 0;
+	//	int end = dataset_size - 1;*/
+
+	//	/*auto init = tf.emplace([&]() {
+	//		int count = 0;
+	//		int start = 0;
+	//		int end = dataset_size;
+	//		});*/
+
+
+
+	//	tf.for_each_index(0, dataset_size, 1, [&](int i) {
+	//		for (int i = 0; i < dataset_size - 1; i++) {
+	//			if (x[i] == y) continue; // do not use the same point
+	//			double l2 = 0.0;
+	//			for (int j = 1; j < feature_size; j++) {
+	//				l2 += pow((y[j] - x[i][j]), 2);
+	//			}
+	//			distances[0][i] = sqrt(l2);
+	//			//distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
+	//			distances[1][i] = x[i][0]; // Store outcome label
+	//			distances[2][i] = i; // Store index
+	//			//cout << "A" << endl;
+	//			count++;
+	//		}
+	//		});
+	//	//init.precede(tf);
+	//	executor.run(tf);
+	//	cout << "Number of euclidean run:" << count << endl;
+	//	}
+	
+
+};
+
+
+class SerialMergeSortKnn {
+private:
+	int neighbours_number;
+
+public:
+	SerialMergeSortKnn(int k) : neighbours_number(k) {}
+
+	int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
+		double* distances[3];
+		int zeros_count = 0;
+		int ones_count = 0;
+
+		// Allocate memory for distances and index order
+		distances[0] = new double[dataset_size];
+		distances[1] = new double[dataset_size];
+		distances[2] = new double[dataset_size];
+
+		get_knn(dataset, target, distances, dataset_size, feature_size);
+
+		/*merge_sort(distances, 0, dataset_size - 1);*/
+
+		/*for (int i = 0; i < 10; i++) {
+			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+		}*/
+
+		// Count label occurrences in the K nearest neighbors
+		for (int i = 0; i < neighbours_number; i++) {
+			if (distances[1][i] == 0) {
+				zeros_count += 1;
+				cout << "0: " << distances[0][i] << "," << distances[2][i] << endl;
+			}
+			else if (distances[1][i] == 1) {
+				ones_count += 1;
+				cout << "1: " << distances[0][i] << "," << distances[2][i] << endl;
+			}
+		}
+
+		int prediction = (zeros_count > ones_count) ? 0 : 1;
+
+		// Clean up memory
+		delete[] distances[0];
+		delete[] distances[1];
+		delete[] distances[2];
+
+		return prediction;
+	}
+
+private:
+
+	static void merge(double** distances, int low, int middle, int high) {
+		int n1 = middle - low + 1;
+		int n2 = high - middle;
+
+		double* left[3];
+		double* right[3];
+
+		// Create temporary arrays
+		for (int i = 0; i < 3; i++) {
+			left[i] = new double[n1];
+			right[i] = new double[n2];
+		}
+
+		// Copy data to temporary arrays left[] and right[]
+		for (int i = 0; i < n1; i++) {
+			for (int j = 0; j < 3; j++) {
+				left[j][i] = distances[j][low + i];
+			}
+		}
+		for (int i = 0; i < n2; i++) {
+			for (int j = 0; j < 3; j++) {
+				right[j][i] = distances[j][middle + 1 + i];
+			}
+		}
+
+		// Merge the temporary arrays back into distances[3]
+		int i = 0, j = 0, k = low;
+		while (i < n1 && j < n2) {
+			if (left[0][i] <= right[0][j]) {
+				for (int x = 0; x < 3; x++) {
+					distances[x][k] = left[x][i];
+				}
+				i++;
+			}
+			else {
+				for (int x = 0; x < 3; x++) {
+					distances[x][k] = right[x][j];
+				}
+				j++;
+			}
+			k++;
+		}
+
+		// Copy the remaining elements of left[], if any
+		while (i < n1) {
+			for (int x = 0; x < 3; x++) {
+				distances[x][k] = left[x][i];
+			}
+			i++;
+			k++;
+		}
+
+		// Copy the remaining elements of right[], if any
+		while (j < n2) {
+			for (int x = 0; x < 3; x++) {
+				distances[x][k] = right[x][j];
+			}
+			j++;
+			k++;
+		}
+
+		// Clean up temporary arrays
+		for (int x = 0; x < 3; x++) {
+			delete[] left[x];
+			delete[] right[x];
+		}
+	}
+
+	static void merge_sort(double** distances, int low, int high) {
+		if (low < high) {
+			int middle = low + (high - low) / 2;
 			merge_sort(distances, low, middle);
 			merge_sort(distances, middle + 1, high);
 			merge(distances, low, middle, high);
@@ -361,11 +461,8 @@ int main() {
 
 	double** dataset = new double* [dataset_size];
 	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
-	//double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
-	//double target[feature_size] = { 0.0, 1.0, 1.0, 1.0, 28.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 4.0, 0.0, 10.0, 1.0, 0.0, 12.0, 6.0, 2.0 };
-	double target[feature_size] = { 1.0,1.0,1.0,1.0,23.0,1.0,1.0,1.0,0.0,1.0,0.0,0.0,1.0,1.0,1.0,2.0,0.0,0.0,0.0,7.0,5.0,3.0 };
-	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 20.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 7.0, 4.0, 5.0 };
-	
+	double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+
 	// Allocate memory for dataset and target
 	for (int i = 0; i < dataset_size; i++) {
 		dataset[i] = new double[feature_size];
