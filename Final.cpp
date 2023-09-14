@@ -304,7 +304,7 @@ public:
 
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
-		merge_sort(distances, 0, dataset_size - 1);
+		/*merge_sort(distances, 0, dataset_size - 1);*/
 
 		/*for (int i = 0; i < 10; i++) {
 			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
