@@ -322,7 +322,7 @@ int main() {
 	string filename = "diabetes_binary.csv";
 
 	//const int dataset_size = 253681; 
-	const int dataset_size = 153681;
+	const int dataset_size = 53681;
 	const int feature_size = 22;
 
 	double** dataset = new double* [dataset_size];
