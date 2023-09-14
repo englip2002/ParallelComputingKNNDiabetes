@@ -261,7 +261,7 @@ public:
 		//	cout << i + 1 << ") " << distances[0][i] << ", " << distances[1][i] << ", " << distances[2][i] << endl;
 		//}
 
-		selectionSort(distances, 0, dataset_size - 1);
+		selectionSort(distances, dataset_size);
 
 		/*for (int i = 0; i < num_record_to_sort; i++) {
 			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
@@ -291,8 +291,26 @@ public:
 	}
 
 private:
+	static void selectionSort(double** distances, int dataset_size) {
+		for (int i = 0; i < dataset_size - 1; i++) {
+			int min_index = i;
+			for (int j = i + 1; j < dataset_size; j++) {
+				if (distances[0][j] < distances[0][min_index]) {
+					min_index = j;
+				}
+			}
 
-	
+			if (min_index != i) {
+				// Swap distances for all dimensions 
+				for (int x = 0; x < 3; x++) {
+					double temp = distances[x][i];
+					distances[x][i] = distances[x][min_index];
+					distances[x][min_index] = temp;
+				}
+			}
+		}
+	}
+
 
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
@@ -375,56 +393,56 @@ int main() {
 
 	cout << "Number of records: " << index << endl;
 
-	//Pthread Knn
-#pragma region PthreadKnn
-	cout << "\nPthread KNN: " << endl;
-	chrono::steady_clock::time_point pthreadBegin = chrono::steady_clock::now();
+		//Pthread Knn
+	#pragma region PthreadKnn
+		cout << "\nPthread KNN: " << endl;
+		chrono::steady_clock::time_point pthreadBegin = chrono::steady_clock::now();
+	
+		PthreadKnn pthreadknn(k_value); // Use K=3
+		int pthreadPrediction = pthreadknn.predict_class(dataset, target, dataset_size, feature_size);
+		cout << "Pthread Prediction: " << pthreadPrediction << endl;
+	
+		if (pthreadPrediction == 0) {
+			cout << "Predicted class: Negative" << endl;
+		}
+		else if (pthreadPrediction == 1) {
+			cout << "Predicted class: Prediabetes or Diabetes" << endl;
+		}
+		else {
+			cout << "Prediction could not be made." << endl;
+		}
+	
+		chrono::steady_clock::time_point pthreadEnd = chrono::steady_clock::now();
+		cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[탎]" << endl;
+	#pragma endregion
 
-	PthreadKnn pthreadknn(k_value); // Use K=3
-	int pthreadPrediction = pthreadknn.predict_class(dataset, target, dataset_size, feature_size);
-	cout << "Pthread Prediction: " << pthreadPrediction << endl;
-
-	if (pthreadPrediction == 0) {
-		cout << "Predicted class: Negative" << endl;
-	}
-	else if (pthreadPrediction == 1) {
-		cout << "Predicted class: Prediabetes or Diabetes" << endl;
-	}
-	else {
-		cout << "Prediction could not be made." << endl;
-	}
-
-	chrono::steady_clock::time_point pthreadEnd = chrono::steady_clock::now();
-	cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[탎]" << endl;
-#pragma endregion
-
-	//Knn
-//	#pragma region Knn
-//		cout << "\n\nKNN: " << endl;
-//		chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
-//		Knn knn(k_value); // Use K=3
-//	
-//		int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
-//		cout << "KNN Prediction: " << prediction << endl;
-//	
-//		if (prediction == 0) {
-//			cout << "Predicted class: Negative" << endl;
-//		}
-//		else if (prediction == 1) {
-//			cout << "Predicted class: Prediabetes or Diabetes" << endl;
-//		}
-//		else {
-//			cout << "Prediction could not be made." << endl;
-//		}
-//	
-//		chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
-//		cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
+		//Knn
+//#pragma region Knn
+//	cout << "\nKNN: " << endl;
+//	chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
+//	Knn knn(k_value); // Use K=3
 //
-//		cout << "The speed of classification is " << (double)((knnEnd - knnBegin) / (pthreadEnd - pthreadBegin)) << " Times fasters" << endl;
+//	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
+//	cout << "KNN Prediction: " << prediction << endl;
+//
+//	if (prediction == 0) {
+//		cout << "Predicted class: Negative" << endl;
+//	}
+//	else if (prediction == 1) {
+//		cout << "Predicted class: Prediabetes or Diabetes" << endl;
+//	}
+//	else {
+//		cout << "Prediction could not be made." << endl;
+//	}
+//
+//	chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
+//	cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
 //
 //#pragma endregion
 
-		// Deallocate memory for dataset
+	//cout << "The speed of classification is " << (double)((knnEnd - knnBegin) / (pthreadEnd - pthreadBegin)) << " Times fasters" << endl;
+
+	// Deallocate memory for dataset
 	for (int i = 0; i < dataset_size; i++) {
 		delete[] dataset[i];
 	}
