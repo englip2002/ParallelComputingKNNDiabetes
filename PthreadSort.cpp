@@ -8,6 +8,7 @@
 #include <vector>
 #define HAVE_STRUCT_TIMESPEC
 #include <pthread.h>
+using namespace std;
 
 const int num_threads = 8;
 const int best_record_each_thread = 5;
@@ -46,10 +47,14 @@ public:
 		distances[1] = new double[dataset_size];
 		distances[2] = new double[dataset_size];
 
-		//std::chrono::steady_clock::time_point knnBegin = std::chrono::steady_clock::now();
+		//chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
 		get_knn(dataset, target, distances, dataset_size, feature_size);
-		//std::chrono::steady_clock::time_point knnEnd = std::chrono::steady_clock::now();
-		//std::cout << "KNN = " << std::chrono::duration_cast<std::chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << std::endl;
+		//chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
+		//cout << "KNN = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
+
+		//for (int i = 0; i < 100; i++) {
+		//	cout << i + 1 <<") " << distances[0][i] << ", " << distances[1][i] << ", " << distances[2][i] << endl;
+		//}
 
 #pragma region quickSorting
 		// creating 4 threads
@@ -88,16 +93,16 @@ public:
 		}
 
 		//for (int i = 0; i < num_record_to_sort; i++) {
-		//	std::cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << std::endl;
+		//	cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << endl;
 		//}
-		//std::cout << "\n";
+		//cout << "\n";
 
 		//sort again
 		//the number of record need to serial sort is rapidly decreased
 		quick_sort(finalSortedDistances, 0, num_record_to_sort - 1);
 
 		//for (int i = 0; i < num_record_to_sort; i++) {
-		//	std::cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << std::endl;
+		//	cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << endl;
 		//}
 
 
@@ -106,15 +111,16 @@ public:
 		int zeros_count = 0;
 		int ones_count = 0;
 
+		cout << "First K value: " << endl;
 		//Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
 			if (finalSortedDistances[1][i] == 0) {
 				zeros_count += 1;
-				std::cout << "0: " << finalSortedDistances[0][i] << "," << finalSortedDistances[2][i] << std::endl;
+				cout << "0: " << finalSortedDistances[0][i] << endl;
 			}
 			else if (finalSortedDistances[1][i] == 1) {
 				ones_count += 1;
-				std::cout << "1: " << finalSortedDistances[0][i] << "," << finalSortedDistances[2][i] << std::endl;
+				cout << "1: " << finalSortedDistances[0][i] << endl;
 			}
 		}
 
@@ -182,9 +188,9 @@ private:
 		double l2 = 0.0;
 		//loop through each label in a row to calculate distance
 		for (int i = 1; i < feature_size; i++) {
-			l2 += std::pow((x[i] - y[i]), 2);
+			l2 += pow((x[i] - y[i]), 2);
 		}
-		return std::sqrt(l2);
+		return sqrt(l2);
 	}
 
 	//function to be parse to pthread for multi-threading
@@ -201,7 +207,7 @@ private:
 			params->distances[2][i] = i; // Store index
 			count++;
 		}
-		std::cout << "Thread " << params->thread_id << " - Number of euclidean run: " << count << std::endl;
+		//cout << "Thread " << params->thread_id << " - Number of euclidean run: " << count << endl;
 
 		return nullptr;
 	}
@@ -252,21 +258,25 @@ public:
 
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
+		//for (int i = 0; i < 100; i++) {
+		//	cout << i + 1 << ") " << distances[0][i] << ", " << distances[1][i] << ", " << distances[2][i] << endl;
+		//}
+
 		quick_sort(distances, 0, dataset_size - 1);
 
 		/*for (int i = 0; i < num_record_to_sort; i++) {
-			std::cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
 		}*/
 
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
 			if (distances[1][i] == 0) {
 				zeros_count += 1;
-				std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;
+				cout << "0: " << distances[0][i] << endl;
 			}
 			else if (distances[1][i] == 1) {
 				ones_count += 1;
-				std::cout << "1: " << distances[0][i] << "," << distances[2][i] << std::endl;
+				cout << "1: " << distances[0][i] << endl;
 			}
 		}
 
@@ -312,9 +322,9 @@ private:
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
 		for (int i = 1; i < feature_size; i++) {
-			l2 += std::pow((x[i] - y[i]), 2);
+			l2 += pow((x[i] - y[i]), 2);
 		}
-		return std::sqrt(l2);
+		return sqrt(l2);
 	}
 
 	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
@@ -326,22 +336,22 @@ private:
 			distances[2][count] = i; // Store index
 			count++;
 		}
-		std::cout << "Number of euclidean run:" << count << std::endl;
+		//cout << "Number of euclidean run:" << count << endl;
 	}
 };
 
-std::vector<double> parseLine(const std::string& line) {
-	std::vector<double> row;
-	std::istringstream iss(line);
-	std::string value;
+vector<double> parseLine(const string& line) {
+	vector<double> row;
+	istringstream iss(line);
+	string value;
 
-	while (std::getline(iss, value, ',')) {
+	while (getline(iss, value, ',')) {
 		try {
-			double num = std::stod(value);
+			double num = stod(value);
 			row.push_back(num);
 		}
-		catch (const std::invalid_argument&) {
-			std::cerr << "Invalid data in CSV: " << value << std::endl;
+		catch (const invalid_argument&) {
+			cerr << "Invalid data in CSV: " << value << endl;
 		}
 	}
 
@@ -349,16 +359,18 @@ std::vector<double> parseLine(const std::string& line) {
 }
 
 int main() {
-	std::string filename = "diabetes_binary.csv";
+	string filename = "diabetes_binary.csv";
 
-	//const int dataset_size = 253681; 
-	const int dataset_size = 53681; 
+	const int dataset_size = 250000;
+	//const int dataset_size = 50000; 
 	//const int dataset_size = 100000;
 	const int feature_size = 22;
 
 	double** dataset = new double* [dataset_size];
 	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
-	double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+	//double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+	double target[feature_size] = { 1.0, 0.0, 0.0, 1.0, 25.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0, 13.0, 6.0, 8.0 };
+	//double target[feature_size] = { 0.0, 1.0, 1.0, 1.0, 28.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 4.0, 0.0, 10.0, 1.0, 0.0, 12.0, 6.0, 2.0 };
 
 	// Allocate memory for dataset and target
 	for (int i = 0; i < dataset_size; i++) {
@@ -366,72 +378,75 @@ int main() {
 	}
 
 	// Read data from CSV and populate dataset and target
-	std::ifstream file(filename);
+	ifstream file(filename);
 	if (!file.is_open()) {
-		std::cerr << "Error opening file: " << filename << std::endl;
+		cerr << "Error opening file: " << filename << endl;
 		return 1;
 	}
 
-	std::string header;
-	std::getline(file, header);
+	string header;
+	//to eliminate first line which is the header
+	getline(file, header);
 
-	std::string line;
+	string line;
 	int index = 0;
-	while (std::getline(file, line) && index < dataset_size) {
-		std::vector<double> row = parseLine(line);
+	while (getline(file, line) && index < dataset_size) {
+		vector<double> row = parseLine(line);
 		for (int j = 0; j < feature_size; j++) {
 			dataset[index][j] = row[j];
 		}
 		index++;
 	}
 
-	std::cout << "Number of records: " << index << std::endl;
+	cout << "Number of records: " << index << endl;
 
 	//Pthread Knn
 #pragma region PthreadKnn
-	std::cout << "\n\nPthread KNN: " << std::endl;
-	std::chrono::steady_clock::time_point pthreadBegin = std::chrono::steady_clock::now();
+	cout << "\n\nPthread KNN: " << endl;
+	chrono::steady_clock::time_point pthreadBegin = chrono::steady_clock::now();
 
 	PthreadKnn pthreadknn(k_value); // Use K=3
 	int pthreadPrediction = pthreadknn.predict_class(dataset, target, dataset_size, feature_size);
-	std::cout << "Pthread Prediction: " << pthreadPrediction << std::endl;
+	cout << "Pthread Prediction: " << pthreadPrediction << endl;
 
 	if (pthreadPrediction == 0) {
-		std::cout << "Predicted class: Negative" << std::endl;
+		cout << "Predicted class: Negative" << endl;
 	}
 	else if (pthreadPrediction == 1) {
-		std::cout << "Predicted class: Prediabetes or Diabetes" << std::endl;
+		cout << "Predicted class: Prediabetes or Diabetes" << endl;
 	}
 	else {
-		std::cout << "Prediction could not be made." << std::endl;
+		cout << "Prediction could not be made." << endl;
 	}
 
-	std::chrono::steady_clock::time_point pthreadEnd = std::chrono::steady_clock::now();
-	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[탎]" << std::endl;
+	chrono::steady_clock::time_point pthreadEnd = chrono::steady_clock::now();
+	cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[탎]" << endl;
 #pragma endregion
 
 	//Knn
 #pragma region Knn
-	std::cout << "\n\nKNN: " << std::endl;
-	std::chrono::steady_clock::time_point knnBegin = std::chrono::steady_clock::now();
+	cout << "\n\nKNN: " << endl;
+	chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
 	Knn knn(k_value); // Use K=3
 
 	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
-	std::cout << "Prediction: " << prediction << std::endl;
+	cout << "KNN Prediction: " << prediction << endl;
 
 	if (prediction == 0) {
-		std::cout << "Predicted class: Negative" << std::endl;
+		cout << "Predicted class: Negative" << endl;
 	}
 	else if (prediction == 1) {
-		std::cout << "Predicted class: Prediabetes or Diabetes" << std::endl;
+		cout << "Predicted class: Prediabetes or Diabetes" << endl;
 	}
 	else {
-		std::cout << "Prediction could not be made." << std::endl;
+		cout << "Prediction could not be made." << endl;
 	}
 
-	std::chrono::steady_clock::time_point knnEnd = std::chrono::steady_clock::now();
-	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << std::endl;
+	chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
+	cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
 #pragma endregion
+
+	cout << "The speed of classification is " << (double)((knnEnd - knnBegin) / (pthreadEnd - pthreadBegin)) << " Times fasters" << endl;
 
 	// Deallocate memory for dataset
 	for (int i = 0; i < dataset_size; i++) {
