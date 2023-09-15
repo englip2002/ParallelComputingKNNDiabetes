@@ -105,7 +105,6 @@ public:
 		//	cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << endl;
 		//}
 
-
 #pragma endregion
 
 		int zeros_count = 0;
@@ -262,12 +261,13 @@ public:
 		//	cout << i + 1 << ") " << distances[0][i] << ", " << distances[1][i] << ", " << distances[2][i] << endl;
 		//}
 
-		quick_sort(distances, 0, dataset_size - 1);
+		selectionSort(distances, dataset_size);
 
 		/*for (int i = 0; i < num_record_to_sort; i++) {
 			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
 		}*/
 
+		cout << "First K value: " << endl;
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
 			if (distances[1][i] == 0) {
@@ -291,33 +291,26 @@ public:
 	}
 
 private:
+	static void selectionSort(double** distances, int dataset_size) {
+		for (int i = 0; i < dataset_size - 1; i++) {
+			int min_index = i;
+			for (int j = i + 1; j < dataset_size; j++) {
+				if (distances[0][j] < distances[0][min_index]) {
+					min_index = j;
+				}
+			}
 
-	static int partition(double** distances, int low, int high) {
-		double pivot = distances[0][high];
-		int i = low - 1;
-		for (int j = low; j < high; j++) {
-			if (distances[0][j] <= pivot) {
-				i++;
-				swap(distances, i, j);
+			if (min_index != i) {
+				// Swap distances for all dimensions 
+				for (int x = 0; x < 3; x++) {
+					double temp = distances[x][i];
+					distances[x][i] = distances[x][min_index];
+					distances[x][min_index] = temp;
+				}
 			}
 		}
-		swap(distances, i + 1, high);
-		return i + 1;
 	}
 
-	static void swap(double** distances, int i, int j) {
-		std::swap(distances[0][i], distances[0][j]);
-		std::swap(distances[1][i], distances[1][j]);
-		std::swap(distances[2][i], distances[2][j]);
-	}
-
-	static void quick_sort(double** distances, int low, int high) {
-		if (low < high) {
-			int pivotIndex = partition(distances, low, high);
-			quick_sort(distances, low, pivotIndex - 1);
-			quick_sort(distances, pivotIndex + 1, high);
-		}
-	}
 
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
@@ -361,15 +354,15 @@ vector<double> parseLine(const string& line) {
 int main() {
 	string filename = "diabetes_binary.csv";
 
-	const int dataset_size = 250000;
-	//const int dataset_size = 50000; 
+	//const int dataset_size = 30000;
 	//const int dataset_size = 100000;
+	const int dataset_size = 250000;
 	const int feature_size = 22;
 
 	double** dataset = new double* [dataset_size];
-	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
+	double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
 	//double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
-	double target[feature_size] = { 1.0, 0.0, 0.0, 1.0, 25.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0, 13.0, 6.0, 8.0 };
+	//double target[feature_size] = { 1.0, 0.0, 0.0, 1.0, 25.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0, 13.0, 6.0, 8.0 };
 	//double target[feature_size] = { 0.0, 1.0, 1.0, 1.0, 28.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 4.0, 0.0, 10.0, 1.0, 0.0, 12.0, 6.0, 2.0 };
 
 	// Allocate memory for dataset and target
@@ -400,53 +393,54 @@ int main() {
 
 	cout << "Number of records: " << index << endl;
 
-	//Pthread Knn
-#pragma region PthreadKnn
-	cout << "\n\nPthread KNN: " << endl;
-	chrono::steady_clock::time_point pthreadBegin = chrono::steady_clock::now();
+		//Pthread Knn
+	#pragma region PthreadKnn
+		cout << "\nPthread KNN: " << endl;
+		chrono::steady_clock::time_point pthreadBegin = chrono::steady_clock::now();
+	
+		PthreadKnn pthreadknn(k_value); // Use K=3
+		int pthreadPrediction = pthreadknn.predict_class(dataset, target, dataset_size, feature_size);
+		cout << "Pthread Prediction: " << pthreadPrediction << endl;
+	
+		if (pthreadPrediction == 0) {
+			cout << "Predicted class: Negative" << endl;
+		}
+		else if (pthreadPrediction == 1) {
+			cout << "Predicted class: Prediabetes or Diabetes" << endl;
+		}
+		else {
+			cout << "Prediction could not be made." << endl;
+		}
+	
+		chrono::steady_clock::time_point pthreadEnd = chrono::steady_clock::now();
+		cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[탎]" << endl;
+	#pragma endregion
 
-	PthreadKnn pthreadknn(k_value); // Use K=3
-	int pthreadPrediction = pthreadknn.predict_class(dataset, target, dataset_size, feature_size);
-	cout << "Pthread Prediction: " << pthreadPrediction << endl;
+		//Knn
+//#pragma region Knn
+//	cout << "\nKNN: " << endl;
+//	chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
+//	Knn knn(k_value); // Use K=3
+//
+//	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
+//	cout << "KNN Prediction: " << prediction << endl;
+//
+//	if (prediction == 0) {
+//		cout << "Predicted class: Negative" << endl;
+//	}
+//	else if (prediction == 1) {
+//		cout << "Predicted class: Prediabetes or Diabetes" << endl;
+//	}
+//	else {
+//		cout << "Prediction could not be made." << endl;
+//	}
+//
+//	chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
+//	cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
+//
+//#pragma endregion
 
-	if (pthreadPrediction == 0) {
-		cout << "Predicted class: Negative" << endl;
-	}
-	else if (pthreadPrediction == 1) {
-		cout << "Predicted class: Prediabetes or Diabetes" << endl;
-	}
-	else {
-		cout << "Prediction could not be made." << endl;
-	}
-
-	chrono::steady_clock::time_point pthreadEnd = chrono::steady_clock::now();
-	cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[탎]" << endl;
-#pragma endregion
-
-	//Knn
-#pragma region Knn
-	cout << "\n\nKNN: " << endl;
-	chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
-	Knn knn(k_value); // Use K=3
-
-	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
-	cout << "KNN Prediction: " << prediction << endl;
-
-	if (prediction == 0) {
-		cout << "Predicted class: Negative" << endl;
-	}
-	else if (prediction == 1) {
-		cout << "Predicted class: Prediabetes or Diabetes" << endl;
-	}
-	else {
-		cout << "Prediction could not be made." << endl;
-	}
-
-	chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
-	cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
-#pragma endregion
-
-	cout << "The speed of classification is " << (double)((knnEnd - knnBegin) / (pthreadEnd - pthreadBegin)) << " Times fasters" << endl;
+	//cout << "The speed of classification is " << (double)((knnEnd - knnBegin) / (pthreadEnd - pthreadBegin)) << " Times fasters" << endl;
 
 	// Deallocate memory for dataset
 	for (int i = 0; i < dataset_size; i++) {
