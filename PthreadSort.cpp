@@ -41,6 +41,8 @@ public:
 
 	int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
 		double* distances[3];
+		int zeros_count = 0;
+		int ones_count = 0;
 
 		// Allocate memory for distances and index order
 		distances[0] = new double[dataset_size];
@@ -107,19 +109,22 @@ public:
 
 #pragma endregion
 
-		int zeros_count = 0;
-		int ones_count = 0;
 
 		cout << "First K value: " << endl;
 		//Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			if (finalSortedDistances[1][i] == 0) {
+		int count = 0;
+		for (int i = 0; count < neighbours_number; i++) {
+			if (finalSortedDistances[1][i] == 0 && finalSortedDistances[0][i] > 0) {
 				zeros_count += 1;
 				cout << "0: " << finalSortedDistances[0][i] << endl;
+				//cout << "0: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
 			}
-			else if (finalSortedDistances[1][i] == 1) {
+			else if (finalSortedDistances[1][i] == 1 && finalSortedDistances[0][i] > 0) {
 				ones_count += 1;
 				cout << "1: " << finalSortedDistances[0][i] << endl;
+				//cout << "1: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
 			}
 		}
 
@@ -261,22 +266,28 @@ public:
 		//	cout << i + 1 << ") " << distances[0][i] << ", " << distances[1][i] << ", " << distances[2][i] << endl;
 		//}
 
-		selectionSort(distances, dataset_size);
+		//selectionSort(distances, dataset_size);
+		quick_sort(distances, 0, dataset_size - 1);
 
 		/*for (int i = 0; i < num_record_to_sort; i++) {
 			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
 		}*/
 
 		cout << "First K value: " << endl;
-		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][i] == 0) {
+		//Count label occurrences in the K nearest neighbors
+		int count = 0;
+		for (int i = 0; count < neighbours_number; i++) {
+			if (distances[1][i] == 0 && distances[0][i] > 0) {
 				zeros_count += 1;
 				cout << "0: " << distances[0][i] << endl;
+				//cout << "0: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
 			}
-			else if (distances[1][i] == 1) {
+			else if (distances[1][i] == 1 && distances[0][i] > 0) {
 				ones_count += 1;
 				cout << "1: " << distances[0][i] << endl;
+				//cout << "1: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
 			}
 		}
 
@@ -311,6 +322,39 @@ private:
 		}
 	}
 
+	// Function to partition the array into two sub-arrays and return the index of the pivot element
+	static int partition(double** distances, int low, int high) {
+		// Choose the last element as the pivot
+		double pivot = distances[0][high];
+		// Index of the smaller element
+		int i = low - 1;
+		//check if value of distance[0] is lesser than pivot value, if yes swap
+		//to move shorter distance to left
+		for (int j = low; j < high; j++) {
+			if (distances[0][j] <= pivot) {
+				i++;
+				swap(distances, i, j);
+			}
+		}
+		//placing the pivot in the correct position
+		swap(distances, i + 1, high);
+		return i + 1;
+	}
+
+	static void swap(double** distances, int i, int j) {
+		std::swap(distances[0][i], distances[0][j]);
+		std::swap(distances[1][i], distances[1][j]);
+		std::swap(distances[2][i], distances[2][j]);
+	}
+
+	static void quick_sort(double** distances, int low, int high) {
+		if (low < high) {
+			int pivotIndex = partition(distances, low, high);
+			// Recursively sort the sub-arrays
+			quick_sort(distances, low, pivotIndex - 1);
+			quick_sort(distances, pivotIndex + 1, high);
+		}
+	}
 
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
@@ -417,28 +461,28 @@ int main() {
 	#pragma endregion
 
 		//Knn
-//#pragma region Knn
-//	cout << "\nKNN: " << endl;
-//	chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
-//	Knn knn(k_value); // Use K=3
-//
-//	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
-//	cout << "KNN Prediction: " << prediction << endl;
-//
-//	if (prediction == 0) {
-//		cout << "Predicted class: Negative" << endl;
-//	}
-//	else if (prediction == 1) {
-//		cout << "Predicted class: Prediabetes or Diabetes" << endl;
-//	}
-//	else {
-//		cout << "Prediction could not be made." << endl;
-//	}
-//
-//	chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
-//	cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[µs]" << endl;
-//
-//#pragma endregion
+#pragma region Knn
+	cout << "\nKNN: " << endl;
+	chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
+	Knn knn(k_value); // Use K=3
+
+	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
+	cout << "KNN Prediction: " << prediction << endl;
+
+	if (prediction == 0) {
+		cout << "Predicted class: Negative" << endl;
+	}
+	else if (prediction == 1) {
+		cout << "Predicted class: Prediabetes or Diabetes" << endl;
+	}
+	else {
+		cout << "Prediction could not be made." << endl;
+	}
+
+	chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
+	cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[µs]" << endl;
+
+#pragma endregion
 
 	//cout << "The speed of classification is " << (double)((knnEnd - knnBegin) / (pthreadEnd - pthreadBegin)) << " Times fasters" << endl;
 
