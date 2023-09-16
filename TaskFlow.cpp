@@ -45,7 +45,7 @@ public:
 
 
 
-		taskflow.for_each_index(0, dataset_size, 1, [&](int i) {
+		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
 
 
 			/*double l2 = 0.0;
@@ -75,16 +75,19 @@ public:
 
 		cout << "Top 3 Nearest K value: " << endl;
 
+		int count = 0;
 		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
+		for (int i = 0; count < neighbours_number; i++) {
 			//cout << neighbours_number << " ";
-			if (distances[1][i] == 0) {
+			if (distances[1][i] == 0 && distances[0][i] > 0) {
 				zeros_count += 1;
 				cout << "0: " << distances[0][i] << endl;
+				count++;
 			}
-			else if (distances[1][i] == 1) {
+			else if (distances[1][i] == 1 && distances[0][i] > 0) {
 				ones_count += 1;
 				cout << "1: " << distances[0][i] << endl;
+				count++;
 			}
 		}
 
@@ -183,15 +186,18 @@ public:
 
 		cout << "Top 3 Nearest K value: " << endl;
 
+		int count = 0;
 		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][i] == 0) {
+		for (int i = 0; count < neighbours_number; i++) {
+			if (distances[1][i] == 0 && distances[0][i] > 0) {
 				zeros_count += 1;
 				cout << "0: " << distances[0][i] << endl;
+				count++;
 			}
-			else if (distances[1][i] == 1) {
+			else if (distances[1][i] == 1 && distances[0][i] > 0) {
 				ones_count += 1;
 				cout << "1: " << distances[0][i] << endl;
+				count++;
 			}
 		}
 
