@@ -8,88 +8,14 @@
 #include <vector>
 #define HAVE_STRUCT_TIMESPEC
 #include <pthread.h>
+using namespace std;
 
-const int num_threads = 4;
+const int num_threads = 8;
+const int best_record_each_thread = 5;
+const int num_record_to_sort = num_threads * best_record_each_thread;
+const int k_value = 3;
 
-class Knn {
-private:
-	int neighbours_number;
-
-public:
-	Knn(int k) : neighbours_number(k) {}
-
-	int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
-		double* distances[3];
-
-		// Allocate memory for distances and index order
-		distances[0] = new double[dataset_size];
-		distances[1] = new double[dataset_size];
-		distances[2] = new double[dataset_size];
-
-		get_knn(dataset, target, distances, dataset_size, feature_size);
-
-		int* index_order = new int[dataset_size];
-		for (int i = 0; i < dataset_size; ++i) {
-			index_order[i] = i;
-		}
-
-		std::nth_element(index_order, index_order + neighbours_number, index_order + dataset_size,
-			[&](int i, int j) {
-				return distances[0][i] < distances[0][j];
-			});
-
-		int zeros_count = 0;
-		int ones_count = 0;
-
-		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][index_order[i]] == 0) {
-				zeros_count += 1;
-				//std::cout << "0: " << distances[0][index_order[i]] << std::endl;
-			}
-			else if (distances[1][index_order[i]] == 1) {
-				ones_count += 1;
-				//std::cout << "1: " << distances[0][index_order[i]] << std::endl;
-			}
-		}
-
-		int prediction = (zeros_count > ones_count) ? 0 : 1;
-
-		// Clean up memory
-		delete[] distances[0];
-		delete[] distances[1];
-		delete[] distances[2];
-		delete[] index_order;
-
-		return prediction;
-	}
-
-private:
-	double euclidean_distance(const double* x, const double* y, int feature_size) {
-		double l2 = 0.0;
-		for (int i = 1; i < feature_size; i++) {
-			l2 += std::pow((x[i] - y[i]), 2);
-		}
-		return std::sqrt(l2);
-	}
-
-	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
-		int count = 0;
-		for (int i = 0; i < dataset_size; i++) {
-			if (x[i] == y) continue; // do not use the same point
-			distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
-			distances[1][count] = x[i][0]; // Store outcome label
-			distances[2][count] = i; // Store index
-			count++;
-		}
-		std::cout << "Number of euclidean run:" << count << std::endl;
-		std::sort(distances[2], distances[2] + count, [distances](int i, int j) {
-			return distances[0][i] < distances[0][j];
-			});
-	}
-};
-
-struct ThreadParams {
+struct PthreadParams {
 	double** dataset;
 	const double* target;
 	double** distances;
@@ -98,6 +24,12 @@ struct ThreadParams {
 	int start;
 	int end;
 	int thread_id;
+};
+
+struct quickSortParams {
+	double** distances;
+	int low;
+	int high;
 };
 
 class PthreadKnn {
@@ -109,6 +41,219 @@ public:
 
 	int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
 		double* distances[3];
+		int zeros_count = 0;
+		int ones_count = 0;
+
+		// Allocate memory for distances and index order
+		distances[0] = new double[dataset_size];
+		distances[1] = new double[dataset_size];
+		distances[2] = new double[dataset_size];
+
+		//chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
+		get_knn(dataset, target, distances, dataset_size, feature_size);
+		//chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
+		//cout << "KNN = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
+
+		//for (int i = 0; i < 100; i++) {
+		//	cout << i + 1 <<") " << distances[0][i] << ", " << distances[1][i] << ", " << distances[2][i] << endl;
+		//}
+
+#pragma region quickSorting
+		// creating 4 threads
+		pthread_t sortThreads[num_threads];
+		quickSortParams sortParams[num_threads];
+
+		int rows_per_thread = dataset_size / num_threads;
+		for (int i = 0; i < num_threads; i++) {
+			//calculate the start and end for each thread
+			int low = i * rows_per_thread;
+			int high = (i == num_threads - 1) ? dataset_size : (i + 1) * rows_per_thread;
+			sortParams[i] = { distances, low, high };
+
+			pthread_create(&sortThreads[i], NULL, quick_sort_parallel, &sortParams[i]);
+		}
+
+		for (int i = 0; i < num_threads; i++) {
+			pthread_join(sortThreads[i], nullptr);
+		}
+
+		double* finalSortedDistances[3];
+		finalSortedDistances[0] = new double[num_record_to_sort];
+		finalSortedDistances[1] = new double[num_record_to_sort];
+		finalSortedDistances[2] = new double[num_record_to_sort];
+
+		//extract first 5 from each thread (shortest distance for each thread)
+		//i < 3 because distance is 2d array and distance[3][i] is largest
+		for (int i = 0; i < 3; i++) {
+			// k < num_thread is to extract value from each thread
+			for (int k = 0; k < num_threads; k++) {
+				// to extract first 5 record from each thread
+				for (int j = 0; j < best_record_each_thread; j++) {
+					finalSortedDistances[i][(k * best_record_each_thread) + j] = distances[i][((dataset_size / num_threads) * k) + j];
+				}
+			}
+		}
+
+		//for (int i = 0; i < num_record_to_sort; i++) {
+		//	cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << endl;
+		//}
+		//cout << "\n";
+
+		//sort again
+		//the number of record need to serial sort is rapidly decreased
+		quick_sort(finalSortedDistances, 0, num_record_to_sort - 1);
+
+		//for (int i = 0; i < num_record_to_sort; i++) {
+		//	cout << finalSortedDistances[0][i] << "," << finalSortedDistances[1][i] << "," << finalSortedDistances[2][i] << endl;
+		//}
+
+#pragma endregion
+
+
+		cout << "First K(" <<k_value<< ") value: " << endl;
+		//Count label occurrences in the K nearest neighbors
+		int count = 0;
+		for (int i = 0; count < neighbours_number; i++) {
+			if (finalSortedDistances[1][i] == 0 && finalSortedDistances[0][i] > 0) {
+				zeros_count += 1;
+				cout << "0: " << finalSortedDistances[0][i] << endl;
+				//cout << "0: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
+			}
+			else if (finalSortedDistances[1][i] == 1 && finalSortedDistances[0][i] > 0) {
+				ones_count += 1;
+				cout << "1: " << finalSortedDistances[0][i] << endl;
+				//cout << "1: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
+			}
+		}
+
+		//return prediction
+		int prediction = (zeros_count > ones_count) ? 0 : 1;
+
+		// Clean up memory
+		delete[] distances[0];
+		delete[] distances[1];
+		delete[] distances[2];
+		delete[] finalSortedDistances[0];
+		delete[] finalSortedDistances[1];
+		delete[] finalSortedDistances[2];
+		return prediction;
+	}
+
+
+private:
+	static void* quick_sort_parallel(void* arg) {
+		//recieve parameter
+		quickSortParams* params = static_cast<quickSortParams*>(arg);
+
+		//call sort
+		quick_sort(params->distances, params->low, params->high - 1);
+
+		return nullptr;
+	}
+
+	// Function to partition the array into two sub-arrays and return the index of the pivot element
+	static int partition(double** distances, int low, int high) {
+		// Choose the last element as the pivot
+		double pivot = distances[0][high];
+		// Index of the smaller element
+		int i = low - 1;
+		//check if value of distance[0] is lesser than pivot value, if yes swap
+		//to move shorter distance to left
+		for (int j = low; j < high; j++) {
+			if (distances[0][j] <= pivot) {
+				i++;
+				swap(distances, i, j);
+			}
+		}
+		//placing the pivot in the correct position
+		swap(distances, i + 1, high);
+		return i + 1;
+	}
+
+	static void swap(double** distances, int i, int j) {
+		std::swap(distances[0][i], distances[0][j]);
+		std::swap(distances[1][i], distances[1][j]);
+		std::swap(distances[2][i], distances[2][j]);
+	}
+
+	static void quick_sort(double** distances, int low, int high) {
+		if (low < high) {
+			int pivotIndex = partition(distances, low, high);
+			// Recursively sort the sub-arrays
+			quick_sort(distances, low, pivotIndex - 1);
+			quick_sort(distances, pivotIndex + 1, high);
+		}
+	}
+
+	//to calculate euclidean distance
+	static double euclidean_distance(const double* x, const double* y, int feature_size) {
+		double l2 = 0.0;
+		//loop through each label in a row to calculate distance
+		for (int i = 1; i < feature_size; i++) {
+			l2 += pow((x[i] - y[i]), 2);
+		}
+		return sqrt(l2);
+	}
+
+	//function to be parse to pthread for multi-threading
+	static void* compute_distances(void* arg) {
+		//recieve parameters
+		PthreadParams* params = static_cast<PthreadParams*>(arg);
+		int count = 0;
+
+		//different thread is accessing different index range, so no race condition
+		for (int i = params->start; i < params->end; i++) {
+			if (params->dataset[i] == params->target) continue; // do not use the same point
+			params->distances[0][i] = euclidean_distance(params->target, params->dataset[i], params->feature_size);
+			params->distances[1][i] = params->dataset[i][0]; // Store outcome label
+			params->distances[2][i] = i; // Store index
+			count++;
+		}
+		//cout << "Thread " << params->thread_id << " - Number of euclidean run: " << count << endl;
+
+		return nullptr;
+	}
+
+	//the function to be call to get KNN 
+	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
+		//create parameters to be parse to compute_distance function
+		PthreadParams knnParams[num_threads];
+		pthread_t knnThreads[num_threads];
+
+		//to calculate the number of dataset need to handled by each thread
+		int rows_per_thread = dataset_size / num_threads;
+
+		for (int i = 0; i < num_threads; i++) {
+			//assign start and end point for each thread
+			int start = i * rows_per_thread;
+			int end = (i == num_threads - 1) ? dataset_size : (i + 1) * rows_per_thread;
+
+			//store parameter
+			knnParams[i] = { x, y, distances, dataset_size, feature_size, start, end ,i };
+			//create and assign task to thread
+			pthread_create(&knnThreads[i], nullptr, compute_distances, &knnParams[i]);
+		}
+
+		//wait all thread to complete
+		for (int i = 0; i < num_threads; i++) {
+			pthread_join(knnThreads[i], nullptr);
+		}
+	}
+};
+
+class Knn {
+private:
+	int neighbours_number;
+
+public:
+	Knn(int k) : neighbours_number(k) {}
+
+	int predict_class(double* dataset[], const double* target, int dataset_size, int feature_size) {
+		double* distances[3];
+		int zeros_count = 0;
+		int ones_count = 0;
 
 		// Allocate memory for distances and index order
 		distances[0] = new double[dataset_size];
@@ -117,27 +262,31 @@ public:
 
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
-		int* index_order = new int[dataset_size];
-		for (int i = 0; i < dataset_size; ++i) {
-			index_order[i] = i;
-		}
+		//for (int i = 0; i < 100; i++) {
+		//	cout << i + 1 << ") " << distances[0][i] << ", " << distances[1][i] << ", " << distances[2][i] << endl;
+		//}
 
-		// Partial sort using nth_element instead of full sort
-		std::nth_element(index_order, index_order + neighbours_number, index_order + dataset_size,
-			[&](int i, int j) {
-				return distances[0][i] < distances[0][j];
-			});
+		quick_sort(distances, 0, dataset_size - 1);
 
-		int zeros_count = 0;
-		int ones_count = 0;
+		/*for (int i = 0; i < num_record_to_sort; i++) {
+			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
+		}*/
 
-		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][index_order[i]] == 0) {
+		cout << "First K(" << k_value << ") value: " << endl;
+		//Count label occurrences in the K nearest neighbors
+		int count = 0;
+		for (int i = 0; count < neighbours_number; i++) {
+			if (distances[1][i] == 0 && distances[0][i] > 0) {
 				zeros_count += 1;
+				cout << "0: " << distances[0][i] << endl;
+				//cout << "0: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
 			}
-			else if (distances[1][index_order[i]] == 1) {
+			else if (distances[1][i] == 1 && distances[0][i] > 0) {
 				ones_count += 1;
+				cout << "1: " << distances[0][i] << endl;
+				//cout << "1: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
 			}
 		}
 
@@ -147,72 +296,78 @@ public:
 		delete[] distances[0];
 		delete[] distances[1];
 		delete[] distances[2];
-		delete[] index_order;
 
 		return prediction;
 	}
 
-
 private:
-	static double euclidean_distance(const double* x, const double* y, int feature_size) {
-		double l2 = 0.0;
-		for (int i = 1; i < feature_size; i++) {
-			l2 += std::pow((x[i] - y[i]), 2);
+	// Function to partition the array into two sub-arrays and return the index of the pivot element
+	static int partition(double** distances, int low, int high) {
+		// Choose the last element as the pivot
+		double pivot = distances[0][high];
+		// Index of the smaller element
+		int i = low - 1;
+		//check if value of distance[0] is lesser than pivot value, if yes swap
+		//to move shorter distance to left
+		for (int j = low; j < high; j++) {
+			if (distances[0][j] <= pivot) {
+				i++;
+				swap(distances, i, j);
+			}
 		}
-		return std::sqrt(l2);
+		//placing the pivot in the correct position
+		swap(distances, i + 1, high);
+		return i + 1;
 	}
 
-	static void* compute_distances(void* arg) {
-		ThreadParams* params = static_cast<ThreadParams*>(arg);
-		int count = 0;
+	static void swap(double** distances, int i, int j) {
+		std::swap(distances[0][i], distances[0][j]);
+		std::swap(distances[1][i], distances[1][j]);
+		std::swap(distances[2][i], distances[2][j]);
+	}
 
-		//different thread is accessing different index range
-		for (int i = params->start; i < params->end; i++) {
-			if (params->dataset[i] == params->target) continue; // do not use the same point
-			params->distances[0][i] = euclidean_distance(params->target, params->dataset[i], params->feature_size);
-			params->distances[1][i] = params->dataset[i][0]; // Store outcome label
-			params->distances[2][i] = i; // Store index
-			count++;
+	static void quick_sort(double** distances, int low, int high) {
+		if (low < high) {
+			int pivotIndex = partition(distances, low, high);
+			// Recursively sort the sub-arrays
+			quick_sort(distances, low, pivotIndex - 1);
+			quick_sort(distances, pivotIndex + 1, high);
 		}
-		std::cout << "Thread " << params->thread_id << " - Number of euclidean run: " << count << std::endl;
+	}
 
-		return nullptr;
+	double euclidean_distance(const double* x, const double* y, int feature_size) {
+		double l2 = 0.0;
+		for (int i = 1; i < feature_size; i++) {
+			l2 += pow((x[i] - y[i]), 2);
+		}
+		return sqrt(l2);
 	}
 
 	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
-		ThreadParams params[num_threads];
-		pthread_t thread_ids[num_threads];
-
-		int rows_per_thread = dataset_size / num_threads;
-
-		for (int i = 0; i < num_threads; i++) {
-			//assign start and end point for each thread
-			int start = i * rows_per_thread;
-			int end = (i == num_threads - 1) ? dataset_size : (i + 1) * rows_per_thread;
-
-			//store parameter
-			params[i] = { x, y, distances, dataset_size, feature_size, start, end ,i };
-			pthread_create(&thread_ids[i], nullptr, compute_distances, &params[i]);
+		int count = 0;
+		for (int i = 0; i < dataset_size; i++) {
+			if (x[i] == y) continue; // do not use the same point
+			distances[0][count] = this->euclidean_distance(y, x[i], feature_size);
+			distances[1][count] = x[i][0]; // Store outcome label
+			distances[2][count] = i; // Store index
+			count++;
 		}
-
-		for (int i = 0; i < num_threads; i++) {
-			pthread_join(thread_ids[i], nullptr);
-		}
+		//cout << "Number of euclidean run:" << count << endl;
 	}
 };
 
-std::vector<double> parseLine(const std::string& line) {
-	std::vector<double> row;
-	std::istringstream iss(line);
-	std::string value;
+vector<double> parseLine(const string& line) {
+	vector<double> row;
+	istringstream iss(line);
+	string value;
 
-	while (std::getline(iss, value, ',')) {
+	while (getline(iss, value, ',')) {
 		try {
-			double num = std::stod(value);
+			double num = stod(value);
 			row.push_back(num);
 		}
-		catch (const std::invalid_argument&) {
-			std::cerr << "Invalid data in CSV: " << value << std::endl;
+		catch (const invalid_argument&) {
+			cerr << "Invalid data in CSV: " << value << endl;
 		}
 	}
 
@@ -220,15 +375,18 @@ std::vector<double> parseLine(const std::string& line) {
 }
 
 int main() {
-	std::string filename = "diabetes_binary.csv";
+	string filename = "diabetes_binary.csv";
 
-	//const int dataset_size = 253681; 
-	const int dataset_size = 53681;
+	//const int dataset_size = 30000;
+	//const int dataset_size = 100000;
+	const int dataset_size = 250000;
 	const int feature_size = 22;
 
 	double** dataset = new double* [dataset_size];
-	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
-	double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+	double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
+	//double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+	//double target[feature_size] = { 1.0, 0.0, 0.0, 1.0, 25.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 3.0, 0.0, 0.0, 0.0, 1.0, 13.0, 6.0, 8.0 };
+	//double target[feature_size] = { 0.0, 1.0, 1.0, 1.0, 28.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 4.0, 0.0, 10.0, 1.0, 0.0, 12.0, 6.0, 2.0 };
 
 	// Allocate memory for dataset and target
 	for (int i = 0; i < dataset_size; i++) {
@@ -236,73 +394,76 @@ int main() {
 	}
 
 	// Read data from CSV and populate dataset and target
-	std::ifstream file(filename);
+	ifstream file(filename);
 	if (!file.is_open()) {
-		std::cerr << "Error opening file: " << filename << std::endl;
+		cerr << "Error opening file: " << filename << endl;
 		return 1;
 	}
 
-	std::string header;
-	std::getline(file, header);
+	string header;
+	//to eliminate first line which is the header
+	getline(file, header);
 
-	std::string line;
+	string line;
 	int index = 0;
-	while (std::getline(file, line) && index < dataset_size) {
-		std::vector<double> row = parseLine(line);
+	while (getline(file, line) && index < dataset_size) {
+		vector<double> row = parseLine(line);
 		for (int j = 0; j < feature_size; j++) {
 			dataset[index][j] = row[j];
 		}
 		index++;
 	}
 
-	std::cout << "Number of records: " << index << std::endl;
+	cout << "Number of records: " << index << endl;
 
 	//Pthread Knn
 #pragma region PthreadKnn
-	std::cout << "\n\nPthread KNN: " << std::endl;
-	std::chrono::steady_clock::time_point pthreadBegin = std::chrono::steady_clock::now();
+	cout << "\nPthread KNN  + Quick Sort: " << endl;
+	chrono::steady_clock::time_point pthreadBegin = chrono::steady_clock::now();
 
-	PthreadKnn pthreadknn(3); // Use K=3
+	PthreadKnn pthreadknn(k_value); // Use K=3
 	int pthreadPrediction = pthreadknn.predict_class(dataset, target, dataset_size, feature_size);
-	std::cout << "Pthread Prediction: " << pthreadPrediction << std::endl;
+	cout << "Pthread Prediction: " << pthreadPrediction << endl;
 
 	if (pthreadPrediction == 0) {
-		std::cout << "Predicted class: Negative" << std::endl;
+		cout << "Predicted class: Negative" << endl;
 	}
 	else if (pthreadPrediction == 1) {
-		std::cout << "Predicted class: Prediabetes or Diabetes" << std::endl;
+		cout << "Predicted class: Prediabetes or Diabetes" << endl;
 	}
 	else {
-		std::cout << "Prediction could not be made." << std::endl;
+		cout << "Prediction could not be made." << endl;
 	}
 
-	std::chrono::steady_clock::time_point pthreadEnd = std::chrono::steady_clock::now();
-	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[탎]" << std::endl;
+	chrono::steady_clock::time_point pthreadEnd = chrono::steady_clock::now();
+	cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(pthreadEnd - pthreadBegin).count() << "[탎]" << endl;
 #pragma endregion
 
 	//Knn
 #pragma region Knn
-	std::cout << "\n\nKNN: " << std::endl;
-	std::chrono::steady_clock::time_point knnBegin = std::chrono::steady_clock::now();
-	Knn knn(3); // Use K=3
+	cout << "\nKNN + Quick Sort: " << endl;
+	chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
+	Knn knn(k_value); // Use K=3
 
 	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
-	std::cout << "Prediction: " << prediction << std::endl;
+	cout << "KNN Prediction: " << prediction << endl;
 
 	if (prediction == 0) {
-		std::cout << "Predicted class: Negative" << std::endl;
+		cout << "Predicted class: Negative" << endl;
 	}
 	else if (prediction == 1) {
-		std::cout << "Predicted class: Prediabetes or Diabetes" << std::endl;
+		cout << "Predicted class: Prediabetes or Diabetes" << endl;
 	}
 	else {
-		std::cout << "Prediction could not be made." << std::endl;
+		cout << "Prediction could not be made." << endl;
 	}
 
-	std::chrono::steady_clock::time_point knnEnd = std::chrono::steady_clock::now();
-	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << std::endl;
+	chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
+	cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
+
 #pragma endregion
 
+	//cout << "The speed of classification is " << (double)((knnEnd - knnBegin) / (pthreadEnd - pthreadBegin)) << " Times fasters" << endl;
 
 	// Deallocate memory for dataset
 	for (int i = 0; i < dataset_size; i++) {

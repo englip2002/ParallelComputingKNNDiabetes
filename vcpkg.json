@@ -1,7 +1,0 @@
-{
-    "name": "dspc-assignment",
-    "version-string": "1.0",
-    "dependencies": [
-        "pthread"
-    ]
-}
