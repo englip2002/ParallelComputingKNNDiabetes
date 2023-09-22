@@ -14,7 +14,7 @@
 
 using namespace std;
 using namespace concurrency;
-
+//output format structure
 struct Output
 {
 	concurrent_vector<double> nearestDistanceFound;
@@ -33,6 +33,7 @@ private:
 
 public:
 	Knn(int k) : neighbours_number(k) {}
+	//parallel nth element
 	void compare(concurrent_vector<double> sortingTarget, int startingNum, concurrent_vector<double>* smallerGroup, concurrent_vector<double>* largerGroup) {
 
 		int maxIterations = sortingTarget.size();
@@ -82,10 +83,11 @@ public:
 				reduced = largerGroup;
 				temp = smallerGroup;
 			}
-			
+
 		} while (true);
 	}
 
+	//KNN source code
 	int predict_class_serial(vector<vector<double>> dataset, vector<double> target, int dataset_size, int feature_size) {
 		vector<double> euclideanDistance;
 		int zeros_count = 0;
@@ -127,10 +129,9 @@ public:
 		concurrent_vector<double> kNearestNeighbour;
 		int zeros_count = 0;
 		int ones_count = 0;
-		
-
 		chrono::steady_clock::time_point beginTime = chrono::steady_clock::now();
 
+		//calculate all euclidean distance
 		parallel_for(0, dataset_size, [&dataset, &target, &euclideanDistance, feature_size](int value) {
 			double l2 = 0.0;
 			double distance;
@@ -140,15 +141,18 @@ public:
 				l2 += pow((dataset.at(value).at(i) - target[i]), 2);
 
 			}
+			//round of result to 4 decimal places
 			distance = round(sqrt(l2) * 10000) / 10000;
 			if (distance > 0)
 			{
+				// compress euclidean distance and label of point
 				euclideanDistance.push_back(distance + (dataset.at(value).at(0) / 1000000 + 0.000001));
 			}
 			});
-		
+
+		//sort euclidean distance
 		kNearestNeighbour = parallelNthElement(euclideanDistance);
-		
+
 		
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; i < neighbours_number; i++) {
@@ -161,12 +165,12 @@ public:
 		}
 		int prediction = (zeros_count > ones_count) ? 0 : 1;
 		chrono::steady_clock::time_point endTime = chrono::steady_clock::now();
-		cout << "Time difference of parallerized KNN prediction = " << chrono::duration_cast<chrono::microseconds>(endTime - beginTime).count() << "[µs]" << endl;
-
+		cout << "Time used by program = " << chrono::duration_cast<chrono::microseconds>(endTime - beginTime).count() << "[µs]" << endl;
 		return { kNearestNeighbour, prediction };
 	}
 };
 
+//self defined methods
 class
 	vector<double> parseLine(const  string& line) {
 	vector<double> row;
@@ -192,7 +196,7 @@ int main() {
 	string filename = "diabetes_binary.csv";
 
 	//const int dataset_size = 253681; 
-	const int dataset_size = 253680;
+	const int dataset_size = 250000;
 	const int feature_size = 22;
 	vector<double> target = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
 	concurrent_vector<double> conTarget;
@@ -226,17 +230,18 @@ int main() {
 #pragma endregion
 	Knn KNN(3); // Use K=3
 	Output prediction = KNN.predict_class_parallel_for(conDataset, conTarget, dataset_size, feature_size);
-	cout << "Total Euclidean runs : " << prediction.nearestDistanceFound.size() << endl;
+	
+	//output formating
 	for (int i = 0; i < prediction.nearestDistanceFound.size(); i++)
 	{
-		
-		cout << i << "Closest distance calculated (unordered) : " << setprecision(6)<< prediction.nearestDistanceFound[i];
+		// decompressed output to find label and euclidean distance
+		cout << "Closest distance calculated (unordered) : " << setprecision(6) << prediction.nearestDistanceFound[i] << endl;
 		if (fmod(prediction.nearestDistanceFound[i] * 10000000, 2) == 1) {
-			cout << ", corresponding label : false" << endl;
+			cout << "Corresponding label : false" << endl;
 		}
 		else
 		{
-			cout << ", corresponding label : true" << endl;
+			cout << "Corresponding label : true" << endl;
 		}
 	}
 	if (prediction.prediction == 0) {
@@ -250,6 +255,6 @@ int main() {
 	}
 
 
-	
+
 	return 0;
 }
