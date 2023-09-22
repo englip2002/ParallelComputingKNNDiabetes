@@ -6,6 +6,14 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#define HAVE_STRUCT_TIMESPEC
+#include <pthread.h>
+using namespace std;
+
+const int num_threads = 8;
+const int best_record_each_thread = 5;
+const int num_record_to_sort = num_threads * best_record_each_thread;
+const int k_value = 3;
 
 class Knn {
 private:
@@ -26,69 +34,71 @@ public:
 
 		get_knn(dataset, target, distances, dataset_size, feature_size);
 
-		quick_sort(distances, 0, dataset_size - 1);
+		//for (int i = 0; i < 100; i++) {
+		//	cout << i + 1 << ") " << distances[0][i] << ", " << distances[1][i] << ", " << distances[2][i] << endl;
+		//}
 
-		for (int i = 0; i < 20; i++) {
-			std::cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
-		}
+		selectionSort(distances, dataset_size);
 
-		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][i] == 0) {
+		/*for (int i = 0; i < num_record_to_sort; i++) {
+			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
+		}*/
+
+		cout << "First K value: " << endl;
+		//Count label occurrences in the K nearest neighbors
+		int count = 0;
+		for (int i = 0; count < neighbours_number; i++) {
+			if (distances[1][i] == 0 && distances[0][i] > 0) {
 				zeros_count += 1;
-				std::cout << "0: " << distances[0][i] << "," << distances[2][i] << std::endl;
+				cout << "0: " << distances[0][i] << endl;
+				//cout << "0: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
 			}
-			else if (distances[1][i] == 1) {
+			else if (distances[1][i] == 1 && distances[0][i] > 0) {
 				ones_count += 1;
-				std::cout << "1: " << distances[0][i] << "," << distances[2][i] << std::endl;
+				cout << "1: " << distances[0][i] << endl;
+				//cout << "1: " << distances[0][i] << "," << distances[2][i] << endl;
+				count++;
 			}
 		}
 
 		int prediction = (zeros_count > ones_count) ? 0 : 1;
 
 		// Clean up memory
-		//delete[] distances[0];
-		//delete[] distances[1];
-		//delete[] distances[2];
+		delete[] distances[0];
+		delete[] distances[1];
+		delete[] distances[2];
 
 		return prediction;
 	}
 
 private:
-
-	static int partition(double** distances, int low, int high) {
-		double pivot = distances[0][high];
-		int i = low - 1;
-		for (int j = low; j < high; j++) {
-			if (distances[0][j] <= pivot) {
-				i++;
-				swap(distances, i, j);
+	static void selectionSort(double** distances, int dataset_size) {
+		for (int i = 0; i < dataset_size - 1; i++) {
+			int min_index = i;
+			for (int j = i + 1; j < dataset_size; j++) {
+				if (distances[0][j] < distances[0][min_index]) {
+					min_index = j;
+				}
 			}
-		}
-		swap(distances, i + 1, high);
-		return i + 1;
-	}
 
-	static void swap(double** distances, int i, int j) {
-		std::swap(distances[0][i], distances[0][j]);
-		std::swap(distances[1][i], distances[1][j]);
-		std::swap(distances[2][i], distances[2][j]);
-	}
-
-	static void quick_sort(double** distances, int low, int high) {
-		if (low < high) {
-			int pivotIndex = partition(distances, low, high);
-			quick_sort(distances, low, pivotIndex - 1);
-			quick_sort(distances, pivotIndex + 1, high);
+			if (min_index != i) {
+				// Swap distances for all dimensions 
+				for (int x = 0; x < 3; x++) {
+					double temp = distances[x][i];
+					distances[x][i] = distances[x][min_index];
+					distances[x][min_index] = temp;
+				}
+			}
 		}
 	}
 
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
 		double l2 = 0.0;
 		for (int i = 1; i < feature_size; i++) {
-			l2 += std::pow((x[i] - y[i]), 2);
+			l2 += pow((x[i] - y[i]), 2);
 		}
-		return std::sqrt(l2);
+		return sqrt(l2);
 	}
 
 	void get_knn(double* x[], const double* y, double* distances[3], int dataset_size, int feature_size) {
@@ -100,7 +110,7 @@ private:
 			distances[2][count] = i; // Store index
 			count++;
 		}
-		std::cout << "Number of euclidean run:" << count << std::endl;
+		cout << "Number of euclidean run:" << count << endl;
 	}
 };
 
@@ -162,25 +172,26 @@ int main() {
 
 	//Knn
 #pragma region Knn
-	std::cout << "\n\nKNN: " << std::endl;
-	std::chrono::steady_clock::time_point knnBegin = std::chrono::steady_clock::now();
-	Knn knn(3); // Use K=3
+	cout << "\nKNN: " << endl;
+	chrono::steady_clock::time_point knnBegin = chrono::steady_clock::now();
+	Knn knn(k_value); // Use K=3
 
 	int prediction = knn.predict_class(dataset, target, dataset_size, feature_size);
-	std::cout << "Prediction: " << prediction << std::endl;
+	cout << "KNN Prediction: " << prediction << endl;
 
 	if (prediction == 0) {
-		std::cout << "Predicted class: Negative" << std::endl;
+		cout << "Predicted class: Negative" << endl;
 	}
 	else if (prediction == 1) {
-		std::cout << "Predicted class: Prediabetes or Diabetes" << std::endl;
+		cout << "Predicted class: Prediabetes or Diabetes" << endl;
 	}
 	else {
-		std::cout << "Prediction could not be made." << std::endl;
+		cout << "Prediction could not be made." << endl;
 	}
 
-	std::chrono::steady_clock::time_point knnEnd = std::chrono::steady_clock::now();
-	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(knnEnd - knnBegin).count() << "[µs]" << std::endl;
+	chrono::steady_clock::time_point knnEnd = chrono::steady_clock::now();
+	cout << "Classification Time = " << chrono::duration_cast<chrono::microseconds>(knnEnd - knnBegin).count() << "[µs]" << endl;
+
 #pragma endregion
 
 	// Deallocate memory for dataset

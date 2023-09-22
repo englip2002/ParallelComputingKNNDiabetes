@@ -11,17 +11,12 @@
 #include "../include/taskflow/algorithm/for_each.hpp"
 #include "../include/taskflow/algorithm/sort.hpp"
 
-#pragma warning(disable:4146)
-
 using namespace std;
 using namespace chrono;
 using namespace tf;
 
-const int num_tasks = 4;
-const int sort_record_each_thread = 5;
-const int num_record_to_sort = num_tasks * sort_record_each_thread;
-
-mutex sorting_mutex;
+//the number that serial sort again after the parallel sort to resolve the race condition
+const int num_record_to_sort = 20;
 
 class TaskflowParallelKnn {
 private:
@@ -34,75 +29,56 @@ public:
 		double* distances[3];
 		int zeros_count = 0;
 		int ones_count = 0;
-		int prediction = -1;
-		int chunk_size = dataset_size / num_tasks;
 
 		// Allocate memory for distances and index order
-		distances[0] = new double[dataset_size];
-		distances[1] = new double[dataset_size];
-		distances[2] = new double[dataset_size];
+		distances[0] = new double[dataset_size]; //euclidean distance 
+		distances[1] = new double[dataset_size]; //label : prediction 0 or 1
+		distances[2] = new double[dataset_size]; //index number 
+
+		double* index_order = new double[dataset_size];
 
 		Taskflow taskflow;
 		Executor executor;
 
-		auto [get_knn_task,subsequence_task] = taskflow.emplace(
-			[&](Subflow subflow)
-			{
-				subflow.for_each_index(0, dataset_size, 1, [&](int i) {
-					distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
-					distances[1][i] = dataset[i][0]; // Store outcome label
-					distances[2][i] = i; // Store index
-					});
-			},
-			[&]()
-			{
-					selectionSort(0, dataset_size - 1);
-
-					double* sortedDistances[3];
-					sortedDistances[0] = new double[num_record_to_sort];
-					sortedDistances[1] = new double[num_record_to_sort];
-					sortedDistances[2] = new double[num_record_to_sort];
-
-					//extract first 5 from each thread (shortest distance)
-					for (int i = 0; i < 3; i++) {
-						//cout << "A" << endl;
-						for (int k = 0; k < num_tasks; k++) {
-							//cout << "B" << endl;
-							for (int j = 0; j < sort_record_each_thread; j++) {
-								// cout << "C" << endl;
-								sortedDistances[i][(k * sort_record_each_thread) + j] = distances[i][k * chunk_size + j];
-							}
-						}
-					}
-
-					//sort again
-					selectionSort(sortedDistances, num_record_to_sort - 1);
-
-					//for (int i = 0; i < num_record_to_sort; i++) {
-					//	cout << sortedDistances[0][i] << "," << sortedDistances[1][i] << "," << sortedDistances[2][i] << endl;
-					//}
-
-					// Count label occurrences in the K nearest neighbors
-					for (int i = 0; i < neighbours_number; i++) {
-						//cout << neighbours_number << " ";
-						if (sortedDistances[1][i] == 0) {
-							zeros_count += 1;
-							cout << "0: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << endl;
-						}
-						else if (sortedDistances[1][i] == 1) {
-							ones_count += 1;
-							cout << "1: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << endl;
-						}
-					}
-
-					prediction = (zeros_count > ones_count) ? 0 : 1;
-
+		//Create a task into taskflow not execute immediately
+		//Taskflow parallel iteration --> 4 parameter
+		//(first_index, last_index, step_size, lambda function)
+		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
+			distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
+			distances[1][i] = dataset[i][0]; // Store outcome label
+			distances[2][i] = i; // Store index
 			});
 
-		get_knn_task.precede(subsequence_task);
+		//Execute the task within the taskflow and wiat all task is complete 
+		executor.run(taskflow).wait();
 
-		executor.run(taskflow).get();
+		//Call for sorting --> Parallel sorting implement 
+		selection_sort(distances, dataset_size);
 
+		//for (int i = 0; i < 10; i++) {
+		//	cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
+		//}
+
+		cout << "Top 3 Nearest K value: " << endl;
+
+		int count = 0;
+		// Count label occurrences in the K nearest neighbors
+		for (int i = 0; count < neighbours_number; i++) {
+			if (distances[1][i] == 0 && distances[0][i] > 0) {
+				zeros_count += 1;
+				cout << "0: " << distances[0][i] << endl;
+				count++;
+			}
+			else if (distances[1][i] == 1 && distances[0][i] > 0) {
+				ones_count += 1;
+				cout << "1: " << distances[0][i] << endl;
+				count++;
+			}
+		}
+
+		int prediction = (zeros_count > ones_count) ? 0 : 1;
+
+		// Clean up memory
 		delete[] distances[0];
 		delete[] distances[1];
 		delete[] distances[2];
@@ -110,95 +86,51 @@ public:
 		return prediction;
 	}
 
-#pragma region OldVersion
-		//taskflow.for_each_index(0, dataset_size, 1, [&](int i) {
-
-		//	distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
-		//	distances[1][i] = dataset[i][0]; // Store outcome label
-		//	distances[2][i] = i; // Store index
-		//	});
-
-	//	executor.run(taskflow).wait();
-
-
-	//	selectionSort(distances, dataset_size);
-
-
-	//	double* sortedDistances[3];
-	//	sortedDistances[0] = new double[num_record_to_sort];
-	//	sortedDistances[1] = new double[num_record_to_sort];
-	//	sortedDistances[2] = new double[num_record_to_sort];
-
-	//	//extract first 5 from each thread (shortest distance)
-	//	for (int i = 0; i < 3; i++) {
-	//		//cout << "A" << endl;
-	//		for (int k = 0; k < num_tasks; k++) {
-	//			//cout << "B" << endl;
-	//			for (int j = 0; j < sort_record_each_thread; j++) {
-	//				// cout << "C" << endl;
-	//				sortedDistances[i][(k * sort_record_each_thread) + j] = distances[i][k * chunk_size + j];
-	//			}
-	//		}
-	//	}
-
-	//	//sort again
-	//	selectionSort(sortedDistances, num_record_to_sort);
-
-	//	// Count label occurrences in the K nearest neighbors
-	//	for (int i = 0; i < neighbours_number; i++) {
-	//		//cout << neighbours_number << " ";
-	//		if (sortedDistances[1][i] == 0) {
-	//			zeros_count += 1;
-	//			cout << "0: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << endl;
-	//		}
-	//		else if (sortedDistances[1][i] == 1) {
-	//			ones_count += 1;
-	//			cout << "1: " << sortedDistances[0][i] << "," << sortedDistances[2][i] << endl;
-	//		}
-	//	}
-
-	//	int prediction = (zeros_count > ones_count) ? 0 : 1;
-
-	//	// Clean up memory
-	//	delete[] distances[0];
-	//	delete[] distances[1];
-	//	delete[] distances[2];
-
-	//	return prediction;
-	//}
-
-#pragma endregion
-
 private:
-	static void selectionSort(double** distances, int dataset_size) {
+	static void selection_sort(double** distances, int dataset_size) {
 		Taskflow taskflow;
 		Executor executor;
 
-
+		//Taskflow parallel iteration --> 4 parameter
+		//(first_index, last_index, step_size, lambda function)
 		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
-
 			int min_index = i;
 			for (int j = i + 1; j < dataset_size; j++) {
 				if (distances[0][j] < distances[0][min_index]) {
 					min_index = j;
-
 				}
 			}
 
 			if (min_index != i) {
 				// Swap distances for all dimensions 
-
 				for (int x = 0; x < 3; x++) {
 					double temp = distances[x][i];
 					distances[x][i] = distances[x][min_index];
 					distances[x][min_index] = temp;
 				}
-
 			}
 			});
 
 		executor.run(taskflow).wait();
 
+		//Serial Sort again to resolve the race condition but the number sort is the first 20 records
+		for (int i = 0; i < num_record_to_sort; i++) {
+			int min_index = i;
+			for (int j = i + 1; j < dataset_size; j++) {
+				if (distances[0][j] < distances[0][min_index]) {
+					min_index = j;
+				}
+			}
+
+			if (min_index != i) {
+				// Swap distances for all dimensions 
+				for (int x = 0; x < 3; x++) {
+					double temp = distances[x][i];
+					distances[x][i] = distances[x][min_index];
+					distances[x][min_index] = temp;
+				}
+			}
+		}
 	}
 
 	double euclidean_distance(const double* x, const double* y, int feature_size) {
@@ -233,15 +165,24 @@ public:
 
 		selectionSort(distances, dataset_size);
 
+		/*for (int i = 0; i < 10; i++) {
+			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << std::endl;
+		}*/
+
+		cout << "Top 3 Nearest K value: " << endl;
+
+		int count = 0;
 		// Count label occurrences in the K nearest neighbors
-		for (int i = 0; i < neighbours_number; i++) {
-			if (distances[1][i] == 0) {
+		for (int i = 0; count < neighbours_number; i++) {
+			if (distances[1][i] == 0 && distances[0][i] > 0) {
 				zeros_count += 1;
-				cout << "0: " << distances[0][i] << "," << distances[2][i] << endl;
+				cout << "0: " << distances[0][i] << endl;
+				count++;
 			}
-			else if (distances[1][i] == 1) {
+			else if (distances[1][i] == 1 && distances[0][i] > 0) {
 				ones_count += 1;
-				cout << "1: " << distances[0][i] << "," << distances[2][i] << endl;
+				cout << "1: " << distances[0][i] << endl;
+				count++;
 			}
 		}
 
@@ -321,13 +262,18 @@ std::vector<double> parseLine(const string& line) {
 int main() {
 	string filename = "diabetes_binary.csv";
 
-	//const int dataset_size = 253681; 
-	const int dataset_size = 53681;
+	//const int dataset_size = 30000; 
+	//const int dataset_size = 100000;
+	const int dataset_size = 250000;
 	const int feature_size = 22;
+	int time_parallel_knn = 0;
+	int time_serial_knn = 0;
+	int time_reduce = 0;
 
 	double** dataset = new double* [dataset_size];
-	//double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
-	double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+	double target[feature_size] = { 0.0, 0.0, 0.0, 1.0, 24.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 2.0, 5.0, 3.0 };
+	//double target[feature_size] = { 1.0, 1.0, 1.0, 1.0, 30.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 5.0, 30.0, 30.0, 1.0, 0.0, 9.0, 5.0, 1.0 };
+	//double target[feature_size] = { 0.0, 1.0, 1.0, 1.0, 28.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 4.0, 0.0, 10.0, 1.0, 0.0, 12.0, 6.0, 2.0 };
 
 	// Allocate memory for dataset and target
 	for (int i = 0; i < dataset_size; i++) {
@@ -357,12 +303,12 @@ int main() {
 	cout << "Number of records: " << index << endl;
 
 #pragma region ParallelMergeSortKnn
-	cout << "\n\nTaskflow Parallel KNN with Selection Sort: " << endl;
+	cout << "\n\Taskflow KNN: " << endl;
 	steady_clock::time_point start = steady_clock::now();
 	TaskflowParallelKnn parallelKnn(3); // Use K=3
 
 	int parallelPrediction = parallelKnn.predict_class(dataset, target, dataset_size, feature_size);
-	cout << "Prediction: " << parallelPrediction << endl;
+	cout << "Taskflow Prediction: " << parallelPrediction << endl;
 
 	if (parallelPrediction == 0) {
 		cout << "Predicted class: Negative" << endl;
@@ -375,13 +321,14 @@ int main() {
 	}
 
 	steady_clock::time_point e = steady_clock::now();
-	cout << "Time difference = " << duration_cast<std::chrono::microseconds>(e - start).count() << "[탎]" << endl;
+	time_parallel_knn = duration_cast<std::chrono::microseconds>(e - start).count();
+	cout << "Classification Time = " << time_parallel_knn << "[탎]" << endl;
 #pragma endregion
 
 
 	//Knn
 #pragma region SerialMergeSortKnn
-	cout << "\n\nSerial KNN with Selection Sort: " << endl;
+	cout << "\n\nSerial KNN: " << endl;
 	steady_clock::time_point knnBegin = steady_clock::now();
 	SerialMergeSortKnn knn(3); // Use K=3
 
@@ -399,8 +346,13 @@ int main() {
 	}
 
 	steady_clock::time_point knnEnd = steady_clock::now();
-	cout << "Time difference = " << duration_cast<microseconds>(knnEnd - knnBegin).count() << "[탎]" << endl;
+	time_serial_knn = duration_cast<microseconds>(knnEnd - knnBegin).count();
+	cout << "Classification Time = " << time_serial_knn << "[탎]" << endl;
 #pragma endregion
+
+	time_reduce = time_serial_knn - time_parallel_knn;
+
+	cout << "\n\nThe speed of classification is " << time_reduce << " faster" << endl;
 
 	return 0;
 }
