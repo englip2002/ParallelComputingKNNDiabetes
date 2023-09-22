@@ -11,14 +11,11 @@
 #include "../include/taskflow/algorithm/for_each.hpp"
 #include "../include/taskflow/algorithm/sort.hpp"
 
-#pragma warning(disable:4146)
-
 using namespace std;
 using namespace chrono;
 using namespace tf;
 
-const int num_tasks = 4;
-const int sort_record_each_thread = 5;
+//the number that serial sort again after the parallel sort to resolve the race condition
 const int num_record_to_sort = 20;
 
 class TaskflowParallelKnn {
@@ -34,39 +31,28 @@ public:
 		int ones_count = 0;
 
 		// Allocate memory for distances and index order
-		distances[0] = new double[dataset_size];
-		distances[1] = new double[dataset_size];
-		distances[2] = new double[dataset_size];
+		distances[0] = new double[dataset_size]; //euclidean distance 
+		distances[1] = new double[dataset_size]; //label : prediction 0 or 1
+		distances[2] = new double[dataset_size]; //index number 
 
 		double* index_order = new double[dataset_size];
 
 		Taskflow taskflow;
 		Executor executor;
 
-
-
+		//Create a task into taskflow not execute immediately
+		//Taskflow parallel iteration --> 4 parameter
+		//(first_index, last_index, step_size, lambda function)
 		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
-
-
-			/*double l2 = 0.0;
-			for (int j = 1; j < feature_size; j++) {
-				l2 += pow((target[j] - dataset[i][j]), 2);
-			}
-			distances[0][i] = sqrt(l2);*/
 			distances[0][i] = euclidean_distance(target, dataset[i], feature_size);
 			distances[1][i] = dataset[i][0]; // Store outcome label
 			distances[2][i] = i; // Store index
 			});
 
-
+		//Execute the task within the taskflow and wiat all task is complete 
 		executor.run(taskflow).wait();
 
-
-		/*for (int i = 0; i < 100; i++) {
-			cout << distances[0][i] << "," << distances[1][i] << "," << distances[2][i] << endl;
-		}*/
-
-		int chunk_size = dataset_size / num_tasks;
+		//Call for sorting --> Parallel sorting implement 
 		selection_sort(distances, dataset_size);
 
 		//for (int i = 0; i < 10; i++) {
@@ -78,7 +64,6 @@ public:
 		int count = 0;
 		// Count label occurrences in the K nearest neighbors
 		for (int i = 0; count < neighbours_number; i++) {
-			//cout << neighbours_number << " ";
 			if (distances[1][i] == 0 && distances[0][i] > 0) {
 				zeros_count += 1;
 				cout << "0: " << distances[0][i] << endl;
@@ -106,8 +91,9 @@ private:
 		Taskflow taskflow;
 		Executor executor;
 
+		//Taskflow parallel iteration --> 4 parameter
+		//(first_index, last_index, step_size, lambda function)
 		taskflow.for_each_index(0, dataset_size, 1, [=, &distances](int i) {
-			//sorting_mutex.lock();
 			int min_index = i;
 			for (int j = i + 1; j < dataset_size; j++) {
 				if (distances[0][j] < distances[0][min_index]) {
@@ -117,18 +103,17 @@ private:
 
 			if (min_index != i) {
 				// Swap distances for all dimensions 
-
 				for (int x = 0; x < 3; x++) {
 					double temp = distances[x][i];
 					distances[x][i] = distances[x][min_index];
 					distances[x][min_index] = temp;
 				}
 			}
-			//sorting_mutex.unlock();
 			});
 
 		executor.run(taskflow).wait();
 
+		//Serial Sort again to resolve the race condition but the number sort is the first 20 records
 		for (int i = 0; i < num_record_to_sort; i++) {
 			int min_index = i;
 			for (int j = i + 1; j < dataset_size; j++) {
@@ -367,7 +352,7 @@ int main() {
 
 	time_reduce = time_serial_knn - time_parallel_knn;
 
-	cout << "\n\nThe speed of classification is " << time_reduce << " time(s) faster" << endl;
+	cout << "\n\nThe speed of classification is " << time_reduce << " faster" << endl;
 
 	return 0;
 }
